@@ -4,9 +4,9 @@ import urllib.parse
 from extensions import db
 from flask_migrate import Migrate
 import json
-
 from dotenv import load_dotenv
 import os 
+from flask_cors import CORS
 
 load_dotenv()  
 
@@ -28,13 +28,16 @@ def create_app():
         f"Trusted_Connection={trusted_conn};"
         f"UnicodeResults=True;"
     )
+
     app = Flask(__name__)
+    CORS(app, origins=['http://localhost:4200'], supports_credentials=True)
     
     app.config['JSON_AS_ASCII'] = False
     app.config['SQLALCHEMY_DATABASE_URI'] = f"mssql+pyodbc:///?odbc_connect={params}"
     app.config['SQLALCHEMY_TRACK_MODIFICATIONS'] = False
     app.config['SECRET_KEY'] = secret_key
     app.config['UPLOAD_FOLDER'] = UPLOAD_FOLDER
+    app.config['MAX_CONTENT_LENGTH'] = 16 * 1024 * 1024  # מקסימום גודל להעלאה: 16MB (אפשר לשנות)
 
     app.config.from_pyfile('config.py')
     
@@ -47,13 +50,14 @@ def create_app():
     from routes.events import events_bp
     from routes.content import content_bp
     from routes.news import news_bp
+    from routes.uploads import uploads_bp
     
     app.register_blueprint(news_bp)
     app.register_blueprint(content_bp)
     app.register_blueprint(auth_bp)
     app.register_blueprint(users_bp)
     app.register_blueprint(events_bp)
-
+    app.register_blueprint(uploads_bp)
    
     with app.app_context():
         db.create_all()

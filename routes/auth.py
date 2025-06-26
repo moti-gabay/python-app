@@ -9,18 +9,18 @@ import json
 from utils.decorators import token_required
 load_dotenv()
 secret_key = os.getenv('SECRET_KEY')
-
+token_key = os.getenv('TOKEN_KEY')
 auth_bp = Blueprint('auth', __name__, url_prefix='/auth')
 
 
 @auth_bp.route('/protected')
 def protected():
-    token = request.cookies.get('token')
+    token = request.cookies.get(token_key)
     if not token:
         return jsonify({'message': 'Token is missing!'}), 401
 
     try:
-        payload = jwt.decode(token, secret_key, algorithms=['HS256'])
+        payload = jwt.decode(token, token_key, algorithms=['HS256'])
         user_id = payload['user_id']
         # אפשר להמשיך לעבוד עם user_id
         return jsonify({'message': f'Welcome user {user_id}!'})
@@ -80,17 +80,19 @@ def login():
         token = jwt.encode({
             'user_id': user.id,
             'exp': datetime.datetime.utcnow() + datetime.timedelta(hours=1)
-        }, secret_key, algorithm='HS256')
+        }, token_key, algorithm='HS256')
 
         response = make_response(jsonify({'message': 'Login successful'}))
         # שמירת ה-token בעוגיה
         response.set_cookie(
-            'token',
+            token_key,
             token,
             httponly=True,          # מונע גישה מ-JS בצד לקוח (מומלץ לאבטחה)
-            secure=False,           # True אם האתר רץ על HTTPS, אחרת False
+            secure=False, # <--- כאן
             samesite='Lax',         # להגבלת שיתוף העוגיה בין אתרים
-            max_age=36000            # זמן חיים של העוגיה בשניות (כאן שעה)
+            max_age=360000,         # זמן חיים של העוגיה בשניות (כאן שעה)
+            path='/'
+
         )
         return response
     except Exception as e:
@@ -99,7 +101,15 @@ def login():
 @auth_bp.route('/logout', methods=['POST'])
 def logout():
     response = make_response(jsonify({'message': 'Logout successful'}))
-    response.set_cookie('token', '', expires=0)
+    response.set_cookie(
+           token_key,
+           '',
+           expires=0,
+           httponly=True,
+           secure=False, # וודא שזה מתאים למה שמוגדר ב-login endpoint
+           samesite='Lax',
+           path='/' # <--- זה הדבר החשוב שצריך לוודא שקיים ותואם
+       )    
     return response
 
 @auth_bp.route('/me', methods=['GET'])

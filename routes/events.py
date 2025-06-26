@@ -15,11 +15,9 @@ events_bp = Blueprint('events', __name__)
 def create_event(current_user):
     try:
         data = request.get_json()
-       
         date_obj = datetime.strptime(data['date'], '%Y-%m-%d').date()
         time_obj = datetime.strptime(data['time'], '%H:%M:%S').time()
        
-
         new_event = Event(
             title=data['title'],
             date=date_obj,

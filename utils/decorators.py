@@ -8,16 +8,16 @@ import os
 import json
 
 load_dotenv()
-secret_key = os.getenv('SECRET_KEY')
+token_key = os.getenv('TOKEN_KEY')
 
 def token_required(f):
     @wraps(f)
     def decorated(*args, **kwargs):
-        token = request.cookies.get('token')
+        token = request.cookies.get(token_key)
         if not token:
             return jsonify({'message': 'Token is missing!'}), 401
         try:
-            data = jwt.decode(token, secret_key, algorithms=['HS256'])
+            data = jwt.decode(token, token_key, algorithms=['HS256'])
             current_user = User.query.get(data['user_id'])
             if not current_user:
                 return jsonify({'message': 'User not found!'}), 401
@@ -31,11 +31,11 @@ def token_required(f):
 def admin_required(f):
     @wraps(f)
     def decorated_function(*args, **kwargs):
-        token = request.cookies.get('token')
+        token = request.cookies.get(token_key)
         if not token:
             return jsonify({'message': 'Missing token'}), 401
         try:
-            data = jwt.decode(token, os.getenv('SECRET_KEY'), algorithms=['HS256'])
+            data = jwt.decode(token, token_key, algorithms=['HS256'])
             user = User.query.get(data['user_id'])
             if not user or user.role != 'admin':
                 return jsonify({'message': 'Unauthorized – admin only'," role " : user.role}), 403
@@ -45,3 +45,19 @@ def admin_required(f):
     return decorated_function
 
 
+def member_required(f):
+    """
+    דקורטור לוודא שלמשתמש המאומת יש תפקיד 'member' או 'admin'.
+    דורש שהדקורטור token_required ירוץ לפניו ויעביר את אובייקט המשתמש.
+    """
+    @wraps(f)
+    def decorated_function(current_user, *args, **kwargs):
+        if not current_user:
+            return jsonify({'message': 'Authentication required for role check.'}), 401
+
+        # תפקיד 'member' כולל גם תפקיד 'admin' (היררכיה)
+        if current_user.role not in ['member', 'admin']:
+            print(f"גישה אסורה: משתמש {current_user.email} (תפקיד: {current_user.role}) אינו חבר או מנהל.")
+            return jsonify({'message': 'Forbidden: Member access required.', 'role': current_user.role}), 403
+        return f(current_user, *args, **kwargs)
+    return decorated_function
