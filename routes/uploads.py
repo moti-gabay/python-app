@@ -6,7 +6,7 @@ from extensions import db
 from utils.decorators import token_required ,admin_required ,member_required # במידה ויש לך מערכת התחברות
 from flask import send_from_directory
 
-ALLOWED_EXTENSIONS = {'pdf', 'doc', 'docx', 'xls', 'xlsx', 'txt', 'png', 'jpg', 'jpeg', 'gif'}  # כל קבצים
+ALLOWED_EXTENSIONS = {'pdf', 'doc', 'docx', 'xls', 'xlsx', 'txt', 'png', 'jpg', 'jpeg', 'gif','webp'}  # כל קבצים
 
 uploads_bp = Blueprint('uploads', __name__)
 
@@ -149,3 +149,4 @@ def get_files_filtered():
     if not files:
         return jsonify({"message": "No files found matching the criteria"}), 404
     return jsonify([file.to_dict() for file in files])
+

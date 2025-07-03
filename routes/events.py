@@ -2,7 +2,7 @@ from flask import Blueprint, request, jsonify,Response
 from extensions import db
 from models.event import Event
 from models.user import User
-from utils.decorators import token_required , admin_required
+from utils.decorators import token_required , admin_required,token_required
 from utils.util import json_response
 
 from datetime import datetime
@@ -17,7 +17,7 @@ def create_event(current_user):
         data = request.get_json()
         date_obj = datetime.strptime(data['date'], '%Y-%m-%d').date()
         time_obj = datetime.strptime(data['time'], '%H:%M:%S').time()
-       
+
         new_event = Event(
             title=data['title'],
             date=date_obj,
@@ -25,19 +25,23 @@ def create_event(current_user):
             location=data['location'],
             needed_volunteers=data['needed_volunteers'],
             description=data['description'],
-            registered_count=0,
+            registered_users=json.dumps([]),  # כך תאפס מראש את המערך
             is_approved=False,
             created_by=current_user.id
         )
+
         db.session.add(new_event)
         db.session.commit()
         return jsonify(new_event.to_dict()), 201
+
     except Exception as e:
         db.session.rollback()
         return jsonify({'error': 'Internal Server Error', 'message': str(e)}), 500
 
+
 @events_bp.route('/events', methods=['GET'])
-@admin_required
+@token_required
+# @admin_required
 def get_events(current_user):
     try:
         events = Event.query.all()
@@ -91,26 +95,76 @@ def delete_event(current_user, event_id):
         db.session.rollback()
         return jsonify({'error': 'Internal Server Error', 'message': str(e)}), 500
 
+import json
+
 @events_bp.route('/events/<int:event_id>/register', methods=['POST'])
 @token_required
-def register_volunteer(current_user ,event_id):
+def register_to_event(current_user, event_id):
     try:
         event = Event.query.get(event_id)
         if not event:
-            return jsonify({"message": "Event not found"}), 404
+            return jsonify({'message': 'Event not found'}), 404
 
-        if event.registered_count >= event.needed_volunteers:
-            return jsonify({"message": "Event is full"}), 400
+        # המרת המחרוזת לרשימה
+        registered_users = json.loads(event.registered_users) if event.registered_users else []
 
-        event.registered_count += 1
+        # מניעת רישום כפול
+        if current_user.id in registered_users:
+            return jsonify({'message': 'You are already registered for this event'}), 400
+
+        # הוספת המשתמש לרשימה
+        registered_users.append(current_user.id)
+
+        # המרת הרשימה חזרה למחרוזת JSON לשמירה במסד הנתונים
+        event.registered_users = json.dumps(registered_users)
+
         db.session.commit()
-        return jsonify({"message": "Volunteer registered", "current_registered": event.registered_count})
+
+        return jsonify({
+            'message': 'You have successfully registered for the event',
+            'registered_users': registered_users
+        }), 200
+
     except Exception as e:
         db.session.rollback()
-        return jsonify({'error': 'Internal Server Error', 'message': str(e)}), 500
+        print(f"Error registering user to event: {e}")
+        return jsonify({'message': 'Internal Server Error', 'error': str(e)}), 500
 
-@events_bp.route('/events/<int:event_id>/approve', methods=['POST'])
-# @token_required  # ✅ רק מנהל יכול
+@events_bp.route('/events/<int:event_id>/unregister', methods=['POST'])
+@token_required
+def unregister_from_event(current_user, event_id):
+    try:
+        event = Event.query.get(event_id)
+        if not event:
+            return jsonify({'message': 'Event not found'}), 404
+
+        registered_users = json.loads(event.registered_users) if event.registered_users else []
+
+        # בדוק אם המשתמש בכלל רשום
+        if current_user.id not in registered_users:
+            return jsonify({'message': 'You are not registered for this event'}), 400
+
+        # הסר את המשתמש מהרשימה
+        registered_users.remove(current_user.id)
+
+        # שמור את הרשימה המעודכנת
+        event.registered_users = json.dumps(registered_users)
+
+        db.session.commit()
+
+        return jsonify({
+            'message': 'You have successfully unregistered from the event',
+            'registered_users': registered_users
+        }), 200
+
+    except Exception as e:
+        db.session.rollback()
+        print(f"Error unregistering user from event: {e}")
+        return jsonify({'message': 'Internal Server Error', 'error': str(e)}), 500
+
+
+
+@events_bp.route('/events/<int:event_id>/approve', methods=['PUT'])
 @admin_required
 def approve_event(current_user, event_id):
     try:
@@ -126,15 +180,7 @@ def approve_event(current_user, event_id):
         return jsonify({'error': 'Internal Server Error', 'message': str(e)}), 500
 
 
-    event = Event.query.get(event_id)
-    if not event:
-        return jsonify({'message': 'Event not found'}), 404
-
-    event.is_approved = True
-    db.session.commit()
-    return jsonify({"message": "Event approved", "event": event.to_dict()})
-
-@events_bp.route('/events/<int:event_id>/unapprove', methods=['POST'])
+@events_bp.route('/events/<int:event_id>/unapprove', methods=['PUT'])
 @admin_required
 def unapprove_event(current_user, event_id):
     # רק מנהל יכול לבטל אישור
@@ -149,3 +195,13 @@ def unapprove_event(current_user, event_id):
     db.session.commit()
 
     return jsonify({"message": "Event unapproved", "event": event.to_dict()})
+
+@events_bp.route('/events/approved', methods=['GET'])
+@token_required
+def get_approved_events(current_user):
+    try:
+        approved_events = Event.query.filter_by(is_approved=True).all()
+        return jsonify([event.to_dict() for event in approved_events]), 200
+    except Exception as e:
+        print(f"Error fetching approved events: {e}")
+        return jsonify({'message': 'Internal Server Error', 'error': str(e)}), 500

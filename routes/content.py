@@ -2,7 +2,8 @@
 from flask import Blueprint, request, jsonify,send_from_directory
 from models.page_content import PageContent
 from extensions import db
-from utils.decorators import admin_required
+from utils.decorators import admin_required ,member_required,token_required
+import json
 
 content_bp = Blueprint('content', __name__, url_prefix='/content')
 
@@ -24,13 +25,13 @@ def create_page(current_user):
         return jsonify({'message': 'Page with this slug already exists'}), 400
     
     images_list = data.get('images', [])
-    images_json = json.dumps(images_list, ensure_ascii=False) if images_list else None
+    images = json.dumps(images_list, ensure_ascii=False) if images_list else None
     
     new_page = PageContent(
         slug=data['slug'],
         title=data['title'],
         body=data['body'],
-        images_json=images_json
+        images=images
     )
     
     db.session.add(new_page)
@@ -65,3 +66,34 @@ def delete_page(current_user, slug):
 @admin_required
 def uploaded_file(filename):
     return send_from_directory(app.config['UPLOAD_FOLDER'], filename)
+
+@content_bp.route('/<int:page_id>/images', methods=['PUT', 'PATCH'])
+@token_required
+@member_required # <--- הרשאת Member: חברים ומנהלים יכולים לעדכן תמונות
+def update_page_images(current_user, page_id): # <--- הוסף את 'current_user' כאן!
+    print(f"User {current_user.email} (Role: {current_user.role}) is attempting to update images for page ID: {page_id}")
+    try:
+        page = PageContent.query.get(page_id)
+        if not page:
+            return jsonify({'message': 'Page content not found'}), 404
+
+        data = request.get_json()
+        if not data or 'images' not in data:
+            return jsonify({'message': 'Missing "images" array in request body'}), 400
+        
+        if not isinstance(data['images'], list):
+            return jsonify({'message': '"images" must be a list'}), 400
+        
+        if not all(isinstance(img, str) for img in data['images']):
+            return jsonify({'message': 'All image entries must be strings (URLs)'}), 400
+
+        page.images = json.dumps(data['images'])
+        db.session.commit()
+        
+        print(f"Images for page ID {page_id} updated successfully by {current_user.email}.")
+        return jsonify({'message': 'Page images updated successfully', 'page': page.to_dict()}), 200
+    except Exception as e:
+        db.session.rollback()
+        print(f"Error updating images for page ID {page_id}: {e}")
+        return jsonify({'message': 'Internal Server Error', 'error': str(e)}), 500
+

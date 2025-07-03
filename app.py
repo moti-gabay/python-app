@@ -39,6 +39,10 @@ def create_app():
     app.config['UPLOAD_FOLDER'] = UPLOAD_FOLDER
     app.config['MAX_CONTENT_LENGTH'] = 16 * 1024 * 1024  # מקסימום גודל להעלאה: 16MB (אפשר לשנות)
 
+    IMAGES_UPLOAD_FOLDER = 'uploaded_images'
+    app.config['IMAGES_UPLOAD_FOLDER'] = IMAGES_UPLOAD_FOLDER
+    os.makedirs(IMAGES_UPLOAD_FOLDER, exist_ok=True) # וודא שהתיקייה קיימת
+
     app.config.from_pyfile('config.py')
     
     migrate = Migrate(app, db)
@@ -51,7 +55,9 @@ def create_app():
     from routes.content import content_bp
     from routes.news import news_bp
     from routes.uploads import uploads_bp
-    
+    from routes.image import image_bp
+    # <--- ייבוא ה-Blueprint החדש
+    app.register_blueprint(image_bp) # <--- ירשום ה-Blueprint החדש
     app.register_blueprint(news_bp)
     app.register_blueprint(content_bp)
     app.register_blueprint(auth_bp)
@@ -63,6 +69,7 @@ def create_app():
         db.create_all()
         
     return app
+
 
 if __name__ == '__main__':
     app = create_app()
