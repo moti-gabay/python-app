@@ -61,3 +61,4 @@ def member_required(f):
             return jsonify({'message': 'Forbidden: Member access required.', 'role': current_user.role}), 403
         return f(current_user, *args, **kwargs)
     return decorated_function
+

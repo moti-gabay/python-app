@@ -1,13 +1,14 @@
 from flask import Blueprint, request, jsonify ,Response
 from extensions import db
 from models.user import User
-from utils.decorators import token_required ,admin_required
+from utils.decorators import token_required ,admin_required,member_required
 import json
 
 users_bp = Blueprint('users', __name__, url_prefix='/users')
 
 @users_bp.route('/', methods=['GET'])
-@admin_required
+@token_required
+@member_required
 def get_users(current_user):
     try:
         users = User.query.all()
