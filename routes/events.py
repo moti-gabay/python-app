@@ -81,6 +81,7 @@ def update_event(current_user, event_id):
         return jsonify({'error': 'Internal Server Error', 'message': str(e)}), 500
 
 @events_bp.route('/events/<int:event_id>', methods=['DELETE'])
+@token_required
 @admin_required
 def delete_event(current_user, event_id):
     try:
@@ -165,6 +166,7 @@ def unregister_from_event(current_user, event_id):
 
 
 @events_bp.route('/events/<int:event_id>/approve', methods=['PUT'])
+@token_required
 @admin_required
 def approve_event(current_user, event_id):
     try:
@@ -181,6 +183,7 @@ def approve_event(current_user, event_id):
 
 
 @events_bp.route('/events/<int:event_id>/unapprove', methods=['PUT'])
+@token_required
 @admin_required
 def unapprove_event(current_user, event_id):
     # רק מנהל יכול לבטל אישור

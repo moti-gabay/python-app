@@ -69,7 +69,8 @@ def create_app():
     from routes.uploads import uploads_bp
     from routes.image import image_bp
     from routes.email import email_bp # <--- ייבוא ה-Blueprint החדש (ודא שזה email_bp.py)
-    
+    from routes.tradition import tradition_bp # <--- ייבוא ה-Blueprint החדש
+
     app.register_blueprint(auth_bp)
     app.register_blueprint(users_bp)
     app.register_blueprint(events_bp)
@@ -77,9 +78,10 @@ def create_app():
     app.register_blueprint(news_bp)
     app.register_blueprint(uploads_bp)
     app.register_blueprint(image_bp)
+    app.register_blueprint(tradition_bp)
     app.register_blueprint(email_bp, url_prefix='/api') # <--- רישום Blueprint חדש
 
-    @app.route("/")
+    @app.route("/" ,methods=["GET"])
     def index():
         return "Flask server is running"
     
