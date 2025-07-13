@@ -57,7 +57,12 @@ def create_app():
     # אתחול הרחבות - סדר חשוב!
     db.init_app(app)
     migrate.init_app(app, db) # צריך את האפליקציה ואת ה-db
-    cors.init_app(app, resources={r"/*": {"origins": "http://localhost:4200"}}, supports_credentials=True)
+    cors.init_app(app, resources={r"/*": {
+        "origins": "http://localhost:4200", # <--- חייב להתאים בדיוק למקור של אפליקציית Angular
+        "methods": ["GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"], # <--- וודא ש-POST ו-OPTIONS כלולים
+        "allow_headers": ["Content-Type", "Authorization", "X-Access-Tokens"], # <--- וודא שכל הכותרות הרלוונטיות כלולות
+        "supports_credentials": True # <--- חייב להיות True אם אתה שולח קוקיז
+    }})    
     mail.init_app(app) # <--- זה חסר! חייב להיות כאן!
 
     # ייבוא ורישום Blueprint-ים - אחרי אתחול הרחבות

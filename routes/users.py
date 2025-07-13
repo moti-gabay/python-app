@@ -4,9 +4,9 @@ from models.user import User
 from utils.decorators import token_required ,admin_required,member_required
 import json
 
-users_bp = Blueprint('users', __name__, url_prefix='/users')
+users_bp = Blueprint('users', __name__)
 
-@users_bp.route('/', methods=['GET'])
+@users_bp.route('/users', methods=['GET'])
 @token_required
 @member_required
 def get_users(current_user):
@@ -20,7 +20,7 @@ def get_users(current_user):
     except Exception as e:
         return jsonify({'error': 'Internal Server Error', 'message': str(e)}), 500
 
-@users_bp.route('/<int:user_id>', methods=['GET'])
+@users_bp.route('/users/<int:user_id>', methods=['GET'])
 @admin_required
 def get_user(current_user, user_id):
     try:
@@ -32,7 +32,7 @@ def get_user(current_user, user_id):
     except Exception as e:
         return jsonify({'error': 'Internal Server Error', 'message': str(e)}), 500
 
-@users_bp.route('/<int:user_id>', methods=['DELETE'])
+@users_bp.route('/users/<int:user_id>', methods=['DELETE'])
 @admin_required
 def delete_user(current_user, user_id):
     
@@ -52,7 +52,7 @@ def delete_user(current_user, user_id):
 
     return jsonify({"message": "User deleted"})
 
-@users_bp.route('/<int:user_id>', methods=['PUT'])
+@users_bp.route('/users/<int:user_id>', methods=['PUT'])
 @admin_required
 def update_user(current_user, user_id):
     user = User.query.get(user_id)
@@ -77,7 +77,7 @@ def update_user(current_user, user_id):
 
     return jsonify({"message": "User updated"})
 
-@users_bp.route('/<int:user_id>/role', methods=['PUT'])
+@users_bp.route('/users/<int:user_id>/role', methods=['PUT'])
 @admin_required
 def update_user_role(current_user, user_id):
     user = User.query.get(user_id)

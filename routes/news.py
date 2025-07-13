@@ -48,8 +48,8 @@ def create_news_item(current_user): # הפונקציה מקבלת את current_u
         return jsonify({'message': 'News item created successfully', 'news_item': new_news_item.to_dict()}), 201
 
     except Exception as e:
-        db.session.rollback() # בצע rollback במקרה של שגיאה בבסיס נתונים
         print(f"Error creating news item: {e}")
+        db.session.rollback() # בצע rollback במקרה של שגיאה בבסיס נתונים
         return jsonify({'message': 'Internal Server Error', 'error': str(e)}), 500
 
 # --- נקודות קצה נוספות לחדשות (GET, PUT, DELETE) יבואו כאן ---

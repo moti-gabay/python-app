@@ -67,10 +67,10 @@ def create_tradition_item(current_user):
         print(f"שגיאה ביצירת פריט מסורת: {e}")
         return jsonify({'message': 'Internal Server Error', 'error': str(e)}), 500
 
-@tradition_bp.route('/<int:item_id>', methods=['PUT', 'PATCH'])
+@tradition_bp.route('/<int:item_id>', methods=['PUT'])
 @token_required
 @admin_required
-def update_tradition_item(current_user, item_id):
+def update_tradition_item(current_user,item_id):
     """
     מעדכן פריט מסורת קיים (דורש הרשאת אדמין).
     """
@@ -81,6 +81,7 @@ def update_tradition_item(current_user, item_id):
             return jsonify({'message': 'Tradition item not found'}), 404
 
         data = request.get_json()
+        print(data)
         if not data:
             return jsonify({'message': 'No input data provided'}), 400
 
