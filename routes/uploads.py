@@ -77,13 +77,14 @@ def get_all_files(current_user): # הפונקציה חייבת לקבל current_
 
 
 @uploads_bp.route('/files/<filename>', methods=['GET'])
+@token_required
 @admin_required  # אם נדרש
 def view_file(current_user, filename):
     return send_from_directory(app.config['UPLOAD_FOLDER'], filename)
 
 
 @uploads_bp.route('/files/<int:file_id>', methods=['DELETE'])
-# @token_required
+@token_required
 @admin_required
 def delete_file(current_user, file_id):
     file = UploadedFile.query.get(file_id)
@@ -106,9 +107,9 @@ def delete_file(current_user, file_id):
         return jsonify({'error': 'Database error', 'message': str(e)}), 500
 
 @uploads_bp.route('/files/by-year/<int:year>', methods=['GET'])
-# @token_required
+@token_required
 @admin_required # אם נדרש
-def get_files_by_year(year):
+def get_files_by_year(current_user,year):
     # מסנן את הקבצים לפי שדה 'year' במודל
     files = UploadedFile.query.filter_by(year=year).all()
     if not files:

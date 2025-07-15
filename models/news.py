@@ -49,7 +49,7 @@ class NewsItem(db.Model):
             "title": self.title,
             "description": self.description,
             "full_content": self.full_content, # עבור דף הכתבה המלאה
-            "imageUrl": self.image_url, # <--- שם שדה ב-JSON כפי שביקש המשתמש
+            "image_url": self.image_url, # <--- שם שדה ב-JSON כפי שביקש המשתמש
             "published_at": self.published_at.isoformat() + 'Z', # עדיין מחזירים את זה ליתר ביטחון
             "timeAgo": self._calculate_time_ago() # <--- שדה מחושב כפי שביקש המשתמש
         }

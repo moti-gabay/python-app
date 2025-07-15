@@ -4,9 +4,9 @@ from extensions import db
 from models.tradition import TraditionItem # ייבוא המודל החדש
 from utils.decorators import token_required, admin_required # ייבוא דקורטורים לאימות והרשאה
 from utils.util import json_response
-tradition_bp = Blueprint('tradition', __name__, url_prefix='/tradition')
+tradition_bp = Blueprint('tradition', __name__)
 
-@tradition_bp.route('/', methods=['GET'])
+@tradition_bp.route('/tradition', methods=['GET'])
 # @token_required # ניתן להגן אם רק משתמשים מחוברים יכולים לראות את התוכן
 def get_all_tradition_items():
     """
@@ -19,7 +19,7 @@ def get_all_tradition_items():
         print(f"שגיאה בשליפת פריטי מסורת: {e}")
         return jsonify({'message': 'Internal Server Error', 'error': str(e)}), 500
 
-@tradition_bp.route('/<int:item_id>', methods=['GET'])
+@tradition_bp.route('/tradition/<int:item_id>', methods=['GET'])
 # @token_required # ניתן להגן אם רק משתמשים מחוברים יכולים לראות את התוכן
 def get_tradition_item(item_id):
     """
@@ -34,7 +34,7 @@ def get_tradition_item(item_id):
         print(f"שגיאה בשליפת פריט מסורת {item_id}: {e}")
         return jsonify({'message': 'Internal Server Error', 'error': str(e)}), 500
 
-@tradition_bp.route('/', methods=['POST'])
+@tradition_bp.route('/tradition', methods=['POST'])
 @token_required
 @admin_required
 def create_tradition_item(current_user):
@@ -67,7 +67,7 @@ def create_tradition_item(current_user):
         print(f"שגיאה ביצירת פריט מסורת: {e}")
         return jsonify({'message': 'Internal Server Error', 'error': str(e)}), 500
 
-@tradition_bp.route('/<int:item_id>', methods=['PUT'])
+@tradition_bp.route('/tradition/<int:item_id>', methods=['PUT'])
 @token_required
 @admin_required
 def update_tradition_item(current_user,item_id):
@@ -99,7 +99,7 @@ def update_tradition_item(current_user,item_id):
         print(f"שגיאה בעדכון פריט מסורת {item_id}: {e}")
         return jsonify({'message': 'Internal Server Error', 'error': str(e)}), 500
 
-@tradition_bp.route('/<int:item_id>', methods=['DELETE'])
+@tradition_bp.route('/tradition/<int:item_id>', methods=['DELETE'])
 @token_required
 @admin_required
 def delete_tradition_item(current_user, item_id):
