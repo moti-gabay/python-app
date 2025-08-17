@@ -41,7 +41,7 @@ def create_event(current_user):
 
 @events_bp.route('/events', methods=['GET'])
 @token_required
-# @admin_required
+@admin_required
 def get_events(current_user):
     try:
         events = Event.query.all()

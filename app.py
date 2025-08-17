@@ -5,8 +5,6 @@ from extensions import db, migrate, mail, cors # <--- וודא ש-mail ו-cors �
 import json
 from dotenv import load_dotenv
 import os 
-# from flask_cors import CORS # <--- אין צורך לייבא כאן אם הוא ב-extensions.py
-# from routes.email import email_bp # <--- אין צורך לייבא כאן, נייבא בתוך create_app()
 
 load_dotenv() 
 
@@ -69,7 +67,6 @@ def create_app():
     from routes.auth import auth_bp
     from routes.users import users_bp
     from routes.events import events_bp
-    from routes.content import content_bp
     from routes.news import news_bp
     from routes.uploads import uploads_bp
     from routes.image import image_bp
@@ -79,7 +76,6 @@ def create_app():
     app.register_blueprint(auth_bp)
     app.register_blueprint(users_bp)
     app.register_blueprint(events_bp)
-    app.register_blueprint(content_bp)
     app.register_blueprint(news_bp)
     app.register_blueprint(uploads_bp)
     app.register_blueprint(image_bp)
@@ -90,13 +86,6 @@ def create_app():
     def index():
         return "Flask server is running"
     
-    # הקונטקסט של האפליקציה נוצר אוטומטית ב-flask run,
-    # אבל אם אתה מריץ python app.py, זה חשוב שיהיה מחוץ ל-create_app
-    # או שתוודא ש-create_all() נקרא בתוך קונטקסט
-    # עם זאת, עדיף ש-db.create_all() יקרה בתוך app.run() או בפקודת CLI ייעודית.
-    # נשאיר את זה ב-if __name__ == '__main__': בלבד.
-    # with app.app_context():
-    #     db.create_all()
             
     return app
 

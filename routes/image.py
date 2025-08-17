@@ -15,8 +15,7 @@ def allowed_file(filename):
            filename.rsplit('.', 1)[1].lower() in ALLOWED_EXTENSIONS
 # 1. קבלת רשימת כל רשומות התמונות (GET all)
 @image_bp.route('/images', methods=['GET'])
-# @token_required
-# @member_required # גם חברים וגם מנהלים יכולים לצפות ברשימת התמונות
+@token_required
 def get_all_images():
     try:
         images = Image.query.all()
