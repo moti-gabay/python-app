@@ -1,23 +1,34 @@
-# בסיס Ubuntu עם Python
-FROM python:3.13-slim
+# בסיס: Python 3.11 slim
+FROM python:3.11-slim
 
-# התקנת ODBC Driver
-RUN apt-get update && \
-    apt-get install -y curl gnupg apt-transport-https unixodbc-dev && \
-    curl https://packages.microsoft.com/keys/microsoft.asc | apt-key add - && \
-    curl https://packages.microsoft.com/config/ubuntu/22.04/prod.list | tee /etc/apt/sources.list.d/mssql-release.list && \
-    apt-get update && ACCEPT_EULA=Y apt-get install -y msodbcsql18
-
-# קבצי אפליקציה
+# הגדרות סביבת עבודה
 WORKDIR /app
-COPY . /app
 
-# התקנת חבילות Python
+# התקנת כלי מערכת נחוצים
+RUN apt-get update && apt-get install -y \
+    curl \
+    gnupg \
+    unixodbc-dev \
+    build-essential \
+    && rm -rf /var/lib/apt/lists/*
+
+# הוספת מקור Microsoft והתקנת ODBC Driver 18
+RUN curl https://packages.microsoft.com/keys/microsoft.asc | apt-key add - \
+    && curl https://packages.microsoft.com/config/ubuntu/22.04/prod.list > /etc/apt/sources.list.d/mssql-release.list \
+    && apt-get update \
+    && ACCEPT_EULA=Y apt-get install -y msodbcsql18 \
+    && rm -rf /var/lib/apt/lists/*
+
+# העתקת קובץ הדרישות והתקנת החבילות
+COPY requirements.txt .
 RUN pip install --upgrade pip
-RUN pip install -r requirements.txt
+RUN pip install --no-cache-dir -r requirements.txt
 
-# חשיפה לפורט של Flask
+# העתקת כל הקוד
+COPY . .
+
+# חשיפה של פורט 5000 (Flask default)
 EXPOSE 5000
 
-# הרצת האפליקציה
+# פקודת הרצה
 CMD ["python", "app.py"]
