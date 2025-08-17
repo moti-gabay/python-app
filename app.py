@@ -16,17 +16,24 @@ def create_app():
         os.makedirs(UPLOAD_FOLDER)
     
     # וודא שמשתני הסביבה נטענים לפני השימוש בהם
-    server = os.getenv('SQL_SERVER')
-    database = os.getenv('SQL_DATABASE')
-    trusted_conn = os.getenv('SQL_TRUSTED_CONNECTION')
+    server = os.getenv("DB_SERVER")
+    database = os.getenv("DB_DATABASE")
+    username = os.getenv("DB_USERNAME")
+    password = os.getenv("DB_PASSWORD")
+    driver = os.getenv("DB_DRIVER")
+
+
     secret_key = os.getenv('SECRET_KEY')
     
     params = (
-        f"DRIVER={{ODBC Driver 17 for SQL Server}};"
+        f"DRIVER={driver};"
         f"SERVER={server};"
         f"DATABASE={database};"
-        f"Trusted_Connection={trusted_conn};"
-        f"UnicodeResults=True;"
+        f"UID={username};"
+        f"PWD={password};"
+        "Encrypt=yes;"
+        "TrustServerCertificate=no;"
+        "Connection Timeout=30;"
     )
 
     # הגדרות אפליקציה
