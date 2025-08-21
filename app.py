@@ -28,7 +28,7 @@ def create_app():
     secret_key = os.getenv('SECRET_KEY')
     
     params = (
-        f"DRIVER={driver};"
+        f"DRIVER=ODBC Driver 18 for SQL Server;"
         f"SERVER={server};"
         f"DATABASE={database};"
         f"UID={username};"
