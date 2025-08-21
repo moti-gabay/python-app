@@ -20,7 +20,7 @@ def create_app():
     database = os.getenv("DB_DATABASE")
     username = os.getenv("DB_USERNAME")
     password = os.getenv("DB_PASSWORD")
-    driver = os.getenv("DB_DRIVER")
+    driver = os.getenv("DB_DRIVER").replace(" ", "+")  # חייבים להמיר רווחים ל+
 
 
     secret_key = os.getenv('SECRET_KEY')
