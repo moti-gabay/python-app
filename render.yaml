@@ -11,8 +11,8 @@ services:
         value: "moti_secret_key123"
       - key: TOKEN_KEY
         value: "token"
-      - key: DB_DRIVER
-        value: "ODBC Driver 18 for SQL Server"
+      - Key: DB_DRIVER
+        Value: ODBC Driver 18 for SQL Server
       - key: DB_SERVER
         value: "tcp:minyan-sql-server.database.windows.net,1433"
       - key: DB_DATABASE
