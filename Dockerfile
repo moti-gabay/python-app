@@ -1,34 +1,27 @@
-# בסיס: Python 3.11 slim
-FROM python:3.11-slim
+# Base image עם Python 3.12
+FROM python:3.12-slim
 
-# הגדרות סביבת עבודה
+# התקנת ספריות מערכת חיוניות ל-pyodbc
+RUN apt-get update && apt-get install -y \
+    g++ \
+    unixodbc-dev \
+    && rm -rf /var/lib/apt/lists/*
+
+# הגדרת ספריית עבודה
 WORKDIR /app
 
-# התקנת כלי מערכת נחוצים
-RUN apt-get update && apt-get install -y \
-    curl \
-    gnupg \
-    unixodbc-dev \
-    build-essential \
-    && rm -rf /var/lib/apt/lists/*
-
-# הוספת מקור Microsoft והתקנת ODBC Driver 18
-RUN curl https://packages.microsoft.com/keys/microsoft.asc | apt-key add - \
-    && curl https://packages.microsoft.com/config/ubuntu/22.04/prod.list > /etc/apt/sources.list.d/mssql-release.list \
-    && apt-get update \
-    && ACCEPT_EULA=Y apt-get install -y msodbcsql18 \
-    && rm -rf /var/lib/apt/lists/*
-
-# העתקת קובץ הדרישות והתקנת החבילות
+# העתקת קבצי הדרישות
 COPY requirements.txt .
+
+# התקנת תלויות Python
 RUN pip install --upgrade pip
 RUN pip install --no-cache-dir -r requirements.txt
 
-# העתקת כל הקוד
+# העתקת קוד הפרויקט
 COPY . .
 
-# חשיפה של פורט 5000 (Flask default)
-EXPOSE 5000
+# הגדרת הפורט ש-Render ישתמש בו
+ENV PORT=10000
 
-# פקודת הרצה
-CMD ["python", "app.py"]
+# פקודת הרצה של השרת Flask
+CMD ["gunicorn", "--bind", "0.0.0.0:10000", "app:app"]
