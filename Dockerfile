@@ -8,6 +8,7 @@ RUN apt-get update && apt-get install -y \
     apt-transport-https \
     g++ \
     unixodbc-dev \
+    build-essential \
     && rm -rf /var/lib/apt/lists/*
 
 # התקנת Microsoft ODBC Driver 18 ל-SQL Server
@@ -29,8 +30,25 @@ RUN pip install --no-cache-dir -r requirements.txt
 # העתקת קוד הפרויקט
 COPY . .
 
-# הגדרת הפורט ש-Render ישתמש בו
+# הגדרת משתני סביבה חיוניים (אפשר להגדיר גם ב-Render UI)
 ENV PORT=10000
+ENV DB_DRIVER="ODBC Driver 18 for SQL Server"
+ENV DB_SERVER="tcp:minyan-sql-server.database.windows.net,1433"
+ENV DB_DATABASE="my-sql-server"
+ENV DB_USERNAME="sqladminuser"
+ENV DB_PASSWORD="MyStrongPassword!123"
+ENV SECRET_KEY="moti_secret_key123"
+ENV TOKEN_KEY="token"
+ENV MAIL_SERVER="smtp.gmail.com"
+ENV MAIL_PORT=587
+ENV MAIL_USE_TLS=True
+ENV MAIL_USERNAME="motigabay18@gmail.com"
+ENV MAIL_PASSWORD="zgxt jxxd ixhy nzmu"
+ENV MAIL_DEFAULT_SENDER="motigabay18@gmail.com"
+ENV SITE_OWNER_EMAIL="motigabay18@gmail.com"
 
-# פקודת הרצה של השרת Flask
+# פתיחת הפורט
+EXPOSE 10000
+
+# פקודת הרצה של השרת Flask עם gunicorn
 CMD ["gunicorn", "--bind", "0.0.0.0:10000", "app:app"]

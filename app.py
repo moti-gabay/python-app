@@ -21,7 +21,9 @@ def create_app():
     username = os.getenv("DB_USERNAME")
     password = os.getenv("DB_PASSWORD")
     driver = os.getenv("DB_DRIVER")  # חייבים להמיר רווחים ל+
-
+    if not driver:
+        raise ValueError("DB_DRIVER environment variable is not set")
+    driver = driver.replace(" ", "+")  # חובה ל-SQLAlchemy
 
     secret_key = os.getenv('SECRET_KEY')
     
@@ -35,10 +37,11 @@ def create_app():
         "TrustServerCertificate=no;"
         "Connection Timeout=30;"
     )
+    quoted = urllib.parse.quote_plus(params)
 
     # הגדרות אפליקציה
     app.config['JSON_AS_ASCII'] = False
-    app.config['SQLALCHEMY_DATABASE_URI'] = f"mssql+pyodbc:///?odbc_connect={params}"
+    app.config['SQLALCHEMY_DATABASE_URI'] = f"mssql+pyodbc:///?odbc_connect={quoted}"
     app.config['SQLALCHEMY_TRACK_MODIFICATIONS'] = False
     app.config['SECRET_KEY'] = secret_key
     app.config['UPLOAD_FOLDER'] = UPLOAD_FOLDER
