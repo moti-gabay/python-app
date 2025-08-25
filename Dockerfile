@@ -6,15 +6,16 @@ RUN apt-get update && apt-get install -y \
     curl \
     gnupg2 \
     apt-transport-https \
-    g++ \
+    build-essential \
     unixodbc \
     unixodbc-dev \
-    build-essential \
+    g++ \
+    make \
     && rm -rf /var/lib/apt/lists/*
 
 # התקנת Microsoft ODBC Driver 18 ל-SQL Server
-RUN curl -sSL https://packages.microsoft.com/keys/microsoft.asc | gpg --dearmor > /etc/apt/trusted.gpg.d/microsoft.gpg \
-    && curl -sSL https://packages.microsoft.com/config/ubuntu/22.04/prod.list -o /etc/apt/sources.list.d/mssql-release.list \
+RUN curl https://packages.microsoft.com/keys/microsoft.asc | apt-key add - \
+    && curl https://packages.microsoft.com/config/ubuntu/22.04/prod.list > /etc/apt/sources.list.d/mssql-release.list \
     && apt-get update \
     && ACCEPT_EULA=Y apt-get install -y msodbcsql18
 
@@ -33,5 +34,5 @@ COPY . .
 ENV PORT=10000
 EXPOSE 10000
 
-# הרצת Gunicorn עם workers מרובים ולוגים נקיים
+# הרצת Gunicorn
 CMD ["gunicorn", "--bind", "0.0.0.0:10000", "main:app", "--workers", "2", "--log-level", "info", "--access-logfile", "-", "--error-logfile", "-"]
