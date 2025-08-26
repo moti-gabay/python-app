@@ -25,17 +25,26 @@ def create_event(current_user):
             description=data.get('description'),
             registered_users=[],
             is_approved=False,
-            created_by=current_user._id
+            created_by=str(current_user['_id'])
         )
 
-        result = mongo.db.events.insert_one(new_event.to_dict())
-        new_event._id = str(result.inserted_id)
+        event_dict = new_event.to_dict()
 
-        return jsonify(new_event.to_dict()), 201
+        # הסרת _id אם הוא None כדי למנוע Duplicate Key Error
+        if event_dict.get('_id') is None:
+            event_dict.pop('_id')
+
+        # הכנסה ל-MongoDB
+        result = mongo.db.events.insert_one(event_dict)
+
+        # הוספת ה-_id שהתקבל מהמונגו חזרה למילון
+        event_dict['_id'] = str(result.inserted_id)
+
+        # החזרת המילון כ-JSON
+        return jsonify(event_dict), 201
 
     except Exception as e:
         return jsonify({'error': 'Internal Server Error', 'message': str(e)}), 500
-
 
 @events_bp.route('/events', methods=['GET'])
 @token_required
@@ -110,10 +119,10 @@ def register_to_event(current_user, event_id):
             return jsonify({'message': 'Event not found'}), 404
 
         event = Event.from_mongo(doc)
-        if current_user._id in event.registered_users:
+        if current_user["_id"] in event.registered_users:
             return jsonify({'message': 'You are already registered'}), 400
 
-        event.registered_users.append(current_user._id)
+        event.registered_users.append(current_user["_id"])
         mongo.db.events.update_one({"_id": ObjectId(event_id)}, {"$set": {"registered_users": event.registered_users}})
 
         return jsonify({'message': 'Registered successfully', 'registered_users': event.registered_users}), 200
@@ -130,10 +139,10 @@ def unregister_from_event(current_user, event_id):
             return jsonify({'message': 'Event not found'}), 404
 
         event = Event.from_mongo(doc)
-        if current_user._id not in event.registered_users:
+        if current_user["_id"] not in event.registered_users:
             return jsonify({'message': 'You are not registered'}), 400
 
-        event.registered_users.remove(current_user._id)
+        event.registered_users.remove(current_user["_id"])
         mongo.db.events.update_one({"_id": ObjectId(event_id)}, {"$set": {"registered_users": event.registered_users}})
 
         return jsonify({'message': 'Unregistered successfully', 'registered_users': event.registered_users}), 200

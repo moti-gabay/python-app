@@ -4,11 +4,13 @@ import os
 from dotenv import load_dotenv
 import time
 import urllib
+from flask_cors import CORS
 
 load_dotenv()  # טען משתני סביבה
 
 def create_app():
     app = Flask(__name__)  # אתחול Flask
+    CORS(app, supports_credentials=True)  # מאפשר גם cookies
 
     # תיקיות להעלאות
     UPLOAD_FOLDER = os.path.join(os.getcwd(), 'uploads')

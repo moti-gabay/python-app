@@ -15,8 +15,7 @@ def allowed_file(filename):
     return '.' in filename and filename.rsplit('.', 1)[1].lower() in ALLOWED_EXTENSIONS
 
 @image_bp.route('/images', methods=['GET'])
-@token_required
-def get_all_images(current_user):
+def get_all_images():
     try:
         docs = mongo.db.images.find()
         images = [Image.from_mongo(doc).to_dict() for doc in docs]

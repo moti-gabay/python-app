@@ -38,13 +38,14 @@ def upload_file(current_user):
             return jsonify({"message": "Server upload folder not configured"}), 500
 
         filepath = os.path.join(upload_folder, filename)
+        print(current_user)
         try:
             file.save(filepath)
             new_doc = {
                 "filename": filename,
                 "category": category,
                 "year": year,
-                "uploaded_by": str(current_user.id),
+                "uploaded_by": str(current_user["_id"]),
                 "created_at": datetime.utcnow()
             }
             result = mongo.db.uploaded_files.insert_one(new_doc)
@@ -63,6 +64,13 @@ def get_all_files(current_user):
     docs = list(mongo.db.uploaded_files.find())
     return jsonify([mongo_doc_to_dict(doc) for doc in docs]), 200
 
+@uploads_bp.route('/files/debug', methods=['GET'])
+def debug_files():
+    docs = list(mongo.db.uploaded_files.find())
+    return jsonify({
+        "count": len(docs),
+        "docs": [str(doc) for doc in docs]
+    }), 200
 # ---------------- VIEW FILE ----------------
 @uploads_bp.route('/files/<filename>', methods=['GET'])
 @token_required
