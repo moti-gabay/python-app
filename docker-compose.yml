@@ -1,30 +1,6 @@
-version: "3.9"
-
 services:
-  flask-app:
-    build: .
-    container_name: flask-app
-    ports:
-      - "5000:10000"  # 5000 במחשב שלך -> 10000 בתוך הקונטיינר
-    env_file: .env    # קובץ עם כל משתני הסביבה
-    depends_on:
-      - sqlserver
-    volumes:
-      - ./uploads:/app/uploads
-      - ./uploaded_images:/app/uploaded_images
-    restart: unless-stopped
-
-  sqlserver:
-    image: mcr.microsoft.com/mssql/server:2022-latest
-    container_name: sqlserver
-    ports:
-      - "1433:1433"
-    environment:
-      SA_PASSWORD: "YourStrongPassword!123"
-      ACCEPT_EULA: "Y"
-    volumes:
-      - sql_data:/var/opt/mssql
-    restart: unless-stopped
-
-volumes:
-  sql_data:
+  - type: web
+    name: minyan-app
+    env: python
+    buildCommand: pip install -r requirements.txt
+    startCommand: gunicorn main:app

@@ -1,29 +1,27 @@
-# models/tradition.py
-from extensions import db
 from datetime import datetime
+from bson import ObjectId
 
-class TraditionItem(db.Model):
+class TraditionItem:
     """
     מודל עבור פריטי המסורת היהודית.
     """
-    id = db.Column(db.Integer, primary_key=True)
-    title = db.Column(db.String(255), nullable=False, unique=True) # כותרת הפריט (לדוגמה: "שבת", "פסח", "תפילת שחרית")
-    short_description = db.Column(db.Text, nullable=True) # תקציר קצר
-    full_content = db.Column(db.Text, nullable=False) # תוכן מלא של הכתבה/הסבר על המסורת
-    category = db.Column(db.String(100), nullable=True) # קטגוריה (לדוגמה: "חגים", "תפילות", "מנהגים", "אישים")
-    image_url = db.Column(db.String(500), nullable=True) # URL לתמונה קשורה (אופציונלי)
-    created_at = db.Column(db.DateTime, default=datetime.utcnow, nullable=False)
-    updated_at = db.Column(db.DateTime, default=datetime.utcnow, onupdate=datetime.utcnow, nullable=False)
-
-    def __repr__(self):
-        return f"<TraditionItem {self.title}>"
+    def __init__(self, title, full_content, short_description=None, category=None,
+                 image_url=None, created_at=None, updated_at=None, _id=None):
+        self._id = str(_id) if _id else None
+        self.title = title
+        self.short_description = short_description
+        self.full_content = full_content
+        self.category = category
+        self.image_url = image_url
+        self.created_at = created_at or datetime.utcnow()
+        self.updated_at = updated_at or datetime.utcnow()
 
     def to_dict(self):
         """
         מחזיר ייצוג מילוני של אובייקט המסורת.
         """
         return {
-            "id": self.id,
+            "_id": self._id,
             "title": self.title,
             "short_description": self.short_description,
             "full_content": self.full_content,
@@ -32,3 +30,19 @@ class TraditionItem(db.Model):
             "created_at": self.created_at.isoformat() + 'Z',
             "updated_at": self.updated_at.isoformat() + 'Z'
         }
+
+    @staticmethod
+    def from_mongo(doc):
+        """
+        יוצר אובייקט TraditionItem ממסמך MongoDB
+        """
+        return TraditionItem(
+            title=doc.get('title'),
+            full_content=doc.get('full_content'),
+            short_description=doc.get('short_description'),
+            category=doc.get('category'),
+            image_url=doc.get('image_url'),
+            created_at=doc.get('created_at'),
+            updated_at=doc.get('updated_at'),
+            _id=doc.get('_id')
+        )

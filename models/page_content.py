@@ -1,17 +1,32 @@
-from extensions import db
 import json
-class PageContent(db.Model):
-    id = db.Column(db.Integer, primary_key=True)
-    slug = db.Column(db.String(100), unique=True, nullable=False)  
-    title = db.Column(db.String(200), nullable=False)
-    body = db.Column(db.Text, nullable=False)
-    images = db.Column(db.Text, nullable=True)  # כאן נשמור מערך JSON כטקסט
+from bson import ObjectId
+
+class PageContent:
+    def __init__(self, slug, title, body, images=None, _id=None):
+        self._id = str(_id) if _id else None
+        self.slug = slug
+        self.title = title
+        self.body = body
+        self.images = images or []  # רשימה של URL או מידע נוסף
 
     def to_dict(self):
         return {
-            "id": self.id,
+            "_id": self._id,
             "slug": self.slug,
             "title": self.title,
             "body": self.body,
-            "images": json.loads(self.images) if self.images else []            
+            "images": self.images
         }
+
+    @staticmethod
+    def from_mongo(doc):
+        """
+        יוצר אובייקט PageContent ממסמך MongoDB
+        """
+        return PageContent(
+            slug=doc.get('slug'),
+            title=doc.get('title'),
+            body=doc.get('body'),
+            images=doc.get('images', []),
+            _id=doc.get('_id')
+        )

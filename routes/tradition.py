@@ -1,122 +1,89 @@
 # routes/tradition_bp.py
 from flask import Blueprint, request, jsonify
-from extensions import db
-from models.tradition import TraditionItem # ייבוא המודל החדש
-from utils.decorators import token_required, admin_required # ייבוא דקורטורים לאימות והרשאה
-from utils.util import json_response
+from extensions import mongo  # PyMongo
+from utils.decorators import token_required, admin_required
+from utils.util import mongo_doc_to_dict  # ממיר מסמך MongoDB ל-dict
+from datetime import datetime
+from bson.objectid import ObjectId
+
 tradition_bp = Blueprint('tradition', __name__)
 
+# ---------------- GET ALL ----------------
 @tradition_bp.route('/tradition', methods=['GET'])
-# @token_required # ניתן להגן אם רק משתמשים מחוברים יכולים לראות את התוכן
 def get_all_tradition_items():
-    """
-    מחזיר את כל פריטי המסורת היהודית.
-    """
     try:
-        items = TraditionItem.query.all()
-        return json_response([item.to_dict() for item in items]), 200
+        docs = list(mongo.db.tradition.find())
+        return jsonify([mongo_doc_to_dict(doc) for doc in docs]), 200
     except Exception as e:
         print(f"שגיאה בשליפת פריטי מסורת: {e}")
         return jsonify({'message': 'Internal Server Error', 'error': str(e)}), 500
 
-@tradition_bp.route('/tradition/<int:item_id>', methods=['GET'])
-# @token_required # ניתן להגן אם רק משתמשים מחוברים יכולים לראות את התוכן
+# ---------------- GET SINGLE ----------------
+@tradition_bp.route('/tradition/<string:item_id>', methods=['GET'])
 def get_tradition_item(item_id):
-    """
-    מחזיר פריט מסורת בודד לפי ID.
-    """
     try:
-        item = TraditionItem.query.get(item_id)
-        if not item:
+        doc = mongo.db.tradition.find_one({"_id": ObjectId(item_id)})
+        if not doc:
             return jsonify({'message': 'Tradition item not found'}), 404
-        return jsonify(item.to_dict()), 200
+        return jsonify(mongo_doc_to_dict(doc)), 200
     except Exception as e:
         print(f"שגיאה בשליפת פריט מסורת {item_id}: {e}")
         return jsonify({'message': 'Internal Server Error', 'error': str(e)}), 500
 
+# ---------------- CREATE ----------------
 @tradition_bp.route('/tradition', methods=['POST'])
 @token_required
 @admin_required
 def create_tradition_item(current_user):
-    """
-    יוצר פריט מסורת חדש (דורש הרשאת אדמין).
-    """
-    print(f"Admin {current_user.email} is attempting to create a tradition item.")
+    data = request.get_json()
+    if not data or not data.get('title') or not data.get('full_content'):
+        missing = [f for f in ('title', 'full_content') if not data.get(f)]
+        return jsonify({'message': f'Missing required fields: {", ".join(missing)}'}), 400
+
     try:
-        data = request.get_json()
-        if not data:
-            return jsonify({'message': 'No input data provided'}), 400
-        
-        if not data.get('title') or not data.get('full_content'):
-            return jsonify({'message': 'Missing required fields: title or full_content'}), 400
-
-        new_item = TraditionItem(
-            title=data['title'],
-            short_description=data.get('short_description'),
-            full_content=data['full_content'],
-            category=data.get('category'),
-            image_url=data.get('image_url')
-        )
-        db.session.add(new_item)
-        db.session.commit()
-        print(f"Tradition item '{new_item.title}' created successfully by {current_user.email}.")
-        return jsonify({'message': 'Tradition item created successfully', 'item': new_item.to_dict()}), 201
-
+        new_doc = {
+            "title": data['title'],
+            "short_description": data.get('short_description'),
+            "full_content": data['full_content'],
+            "category": data.get('category'),
+            "image_url": data.get('image_url'),
+            "created_at": datetime.utcnow(),
+            "updated_at": datetime.utcnow()
+        }
+        result = mongo.db.tradition.insert_one(new_doc)
+        new_doc['_id'] = result.inserted_id
+        return jsonify({'message': 'Tradition item created', 'item': mongo_doc_to_dict(new_doc)}), 201
     except Exception as e:
-        db.session.rollback()
-        print(f"שגיאה ביצירת פריט מסורת: {e}")
         return jsonify({'message': 'Internal Server Error', 'error': str(e)}), 500
 
-@tradition_bp.route('/tradition/<int:item_id>', methods=['PUT'])
+# ---------------- UPDATE ----------------
+@tradition_bp.route('/tradition/<string:item_id>', methods=['PUT', 'PATCH'])
 @token_required
 @admin_required
-def update_tradition_item(current_user,item_id):
-    """
-    מעדכן פריט מסורת קיים (דורש הרשאת אדמין).
-    """
-    print(f"Admin {current_user.email} is attempting to update tradition item ID: {item_id}.")
+def update_tradition_item(current_user, item_id):
+    data = request.get_json()
+    if not data:
+        return jsonify({'message': 'No input data provided'}), 400
+
     try:
-        item = TraditionItem.query.get(item_id)
-        if not item:
+        data['updated_at'] = datetime.utcnow()
+        result = mongo.db.tradition.update_one({"_id": ObjectId(item_id)}, {"$set": data})
+        if result.matched_count == 0:
             return jsonify({'message': 'Tradition item not found'}), 404
-
-        data = request.get_json()
-        print(data)
-        if not data:
-            return jsonify({'message': 'No input data provided'}), 400
-
-        item.title = data.get('title', item.title)
-        item.short_description = data.get('short_description', item.short_description)
-        item.full_content = data.get('full_content', item.full_content)
-        item.category = data.get('category', item.category)
-        item.image_url = data.get('image_url', item.image_url)
-        
-        db.session.commit()
-        print(f"Tradition item {item_id} updated successfully by {current_user.email}.")
-        return jsonify({'message': 'Tradition item updated successfully', 'item': item.to_dict()}), 200
+        doc = mongo.db.tradition.find_one({"_id": ObjectId(item_id)})
+        return jsonify({'message': 'Tradition item updated', 'item': mongo_doc_to_dict(doc)}), 200
     except Exception as e:
-        db.session.rollback()
-        print(f"שגיאה בעדכון פריט מסורת {item_id}: {e}")
         return jsonify({'message': 'Internal Server Error', 'error': str(e)}), 500
 
-@tradition_bp.route('/tradition/<int:item_id>', methods=['DELETE'])
+# ---------------- DELETE ----------------
+@tradition_bp.route('/tradition/<string:item_id>', methods=['DELETE'])
 @token_required
 @admin_required
 def delete_tradition_item(current_user, item_id):
-    """
-    מוחק פריט מסורת (דורש הרשאת אדמין).
-    """
-    print(f"Admin {current_user.email} is attempting to delete tradition item ID: {item_id}.")
     try:
-        item = TraditionItem.query.get(item_id)
-        if not item:
+        result = mongo.db.tradition.delete_one({"_id": ObjectId(item_id)})
+        if result.deleted_count == 0:
             return jsonify({'message': 'Tradition item not found'}), 404
-        
-        db.session.delete(item)
-        db.session.commit()
-        print(f"Tradition item {item_id} deleted successfully by {current_user.email}.")
-        return jsonify({'message': 'Tradition item deleted successfully'}), 200
+        return jsonify({'message': 'Tradition item deleted'}), 200
     except Exception as e:
-        db.session.rollback()
-        print(f"שגיאה במחיקת פריט מסורת {item_id}: {e}")
         return jsonify({'message': 'Internal Server Error', 'error': str(e)}), 500

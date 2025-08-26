@@ -1,15 +1,15 @@
-from extensions import db
 from werkzeug.security import generate_password_hash, check_password_hash
-import json
+from bson import ObjectId
 
-class User(db.Model):
-    id = db.Column(db.Integer, primary_key=True)
-    full_name = db.Column(db.String(100))
-    tz = db.Column(db.String(20), unique=True)
-    email = db.Column(db.String(100), unique=True)
-    password = db.Column(db.String(256))
-    address = db.Column(db.String(200))
-    role = db.Column(db.String(50), default="user")
+class User:
+    def __init__(self, full_name, tz, email, address, role='user', password=None, _id=None):
+        self._id = str(_id) if _id else None
+        self.full_name = full_name
+        self.tz = tz
+        self.email = email
+        self.address = address
+        self.role = role
+        self.password = password  # צריך להיות hashed
 
     def set_password(self, password):
         self.password = generate_password_hash(password)
@@ -19,10 +19,23 @@ class User(db.Model):
 
     def to_dict(self):
         return {
-            "id": self.id,
+            "_id": self._id,
             "full_name": self.full_name,
             "tz": self.tz,
             "email": self.email,
             "address": self.address,
             "role": self.role
         }
+
+    @staticmethod
+    def from_mongo(doc):
+        """צור אובייקט User ממסמך MongoDB"""
+        return User(
+            full_name=doc.get('full_name'),
+            tz=doc.get('tz'),
+            email=doc.get('email'),
+            address=doc.get('address'),
+            role=doc.get('role', 'user'),
+            password=doc.get('password'),
+            _id=doc.get('_id')
+        )
