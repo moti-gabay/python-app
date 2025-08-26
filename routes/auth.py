@@ -69,6 +69,10 @@ def register():
 def login():
     try:
         data = request.get_json()
+        email = data.get('email')
+        password = data.get('password')
+        if not isinstance(email, str) or not isinstance(password, str):
+            return jsonify({"error": "Expected a string value", "message": "Email and password must be strings"}), 500
         if not data or not data.get('email') or not data.get('password'):
             return jsonify({'message': 'Missing email or password'}), 400
 
@@ -109,10 +113,15 @@ def logout():
     )
     return response
 
+# auth.py או auth_bp
 @auth_bp.route('/me', methods=['GET'])
 @token_required
 def who_am_i(current_user):
-    user_doc = mongo.db.users.find_one({"_id": ObjectId(current_user['user_id'])})
-    if user_doc:
-        return jsonify(serialize_user(user_doc))
-    return jsonify({"error": "User not found"}), 404
+    try:
+        # הסרת הסיסמה מהתשובה
+        user_data = current_user.copy()
+        user_data.pop('password', None)
+        user_data['_id'] = str(user_data['_id'])  # המרת ObjectId ל-string
+        return jsonify(user_data)
+    except Exception as e:
+        return jsonify({"error": str(e)}), 500

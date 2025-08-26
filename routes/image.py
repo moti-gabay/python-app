@@ -83,10 +83,13 @@ def upload_image_file(current_user):
     try:
         file.save(filepath)
 
+        # השתמש במפתח dict במקום attribute
+        uploaded_by_id = str(current_user['_id'])
+
         image_doc = {
             "filename": filename,
             "url": f"/images/{filename}",
-            "uploaded_by": current_user._id,
+            "uploaded_by": uploaded_by_id,
             "uploaded_at": datetime.utcnow()
         }
         result = mongo.db.images.insert_one(image_doc)

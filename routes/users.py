@@ -7,8 +7,15 @@ users_bp = Blueprint('users', __name__)
 
 # ✨ פונקציה עזר להמרת ObjectId ל־string
 def serialize_user(user_doc):
-    user_doc['_id'] = str(user_doc['_id'])
-    return user_doc
+    return {
+        "id": str(user_doc.get("_id", "")),
+        "full_name": str(user_doc.get("full_name", "")),
+        "email": str(user_doc.get("email", "")),
+        "tz": str(user_doc.get("tz", "")),
+        "address": str(user_doc.get("address", "")),
+        "role": str(user_doc.get("role", ""))
+    }
+
 
 @users_bp.route('/users', methods=['GET'])
 @token_required
