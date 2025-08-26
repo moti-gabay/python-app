@@ -3,6 +3,8 @@ from flask_sqlalchemy import SQLAlchemy
 from extensions import db, migrate, mail, cors
 import os
 from dotenv import load_dotenv
+import time
+import urllib
 
 load_dotenv()  # טען משתני סביבה
 
@@ -12,21 +14,21 @@ def create_app():
     # תיקיות להעלאות
     UPLOAD_FOLDER = os.path.join(os.getcwd(), 'uploads')
     os.makedirs(UPLOAD_FOLDER, exist_ok=True)
-    IMAGES_UPLOAD_FOLDER = 'uploaded_images'
+    IMAGES_UPLOAD_FOLDER = os.path.join(os.getcwd(), 'uploaded_images')
     os.makedirs(IMAGES_UPLOAD_FOLDER, exist_ok=True)
 
     # משתני סביבה
-    server = os.getenv("DB_SERVER")
-    database = os.getenv("DB_DATABASE")
-    username = os.getenv("DB_USERNAME")
-    password = os.getenv("DB_PASSWORD")
-    driver = os.getenv("DB_DRIVER")  # לדוגמה: "ODBC Driver 18 for SQL Server"
+    server = os.getenv("DB_SERVER", "sqlserver")
+    database = os.getenv("DB_DATABASE", "TestDB")
+    username = os.getenv("DB_USERNAME", "sa")
+    password = os.getenv("DB_PASSWORD", "YourStrongPassword!123")
+    driver = os.getenv("DB_DRIVER", "ODBC Driver 18 for SQL Server")
+    secret_key = os.getenv('SECRET_KEY', "supersecretkey")
 
-    secret_key = os.getenv('SECRET_KEY')
-
+    # ODBC connection string
     params = (
         f"DRIVER={driver};"
-        f"SERVER={server};"
+        f"SERVER={server},1433;"
         f"DATABASE={database};"
         f"UID={username};"
         f"PWD={password};"
@@ -34,15 +36,16 @@ def create_app():
         "TrustServerCertificate=no;"
         "Connection Timeout=30;"
     )
+    odbc_conn_str = urllib.parse.quote_plus(params)
 
     # הגדרות Flask
     app.config['JSON_AS_ASCII'] = False
-    app.config['SQLALCHEMY_DATABASE_URI'] = f"mssql+pyodbc:///?odbc_connect={params}"
+    app.config['SQLALCHEMY_DATABASE_URI'] = f"mssql+pyodbc:///?odbc_connect={odbc_conn_str}"
     app.config['SQLALCHEMY_TRACK_MODIFICATIONS'] = False
     app.config['SECRET_KEY'] = secret_key
     app.config['UPLOAD_FOLDER'] = UPLOAD_FOLDER
-    app.config['MAX_CONTENT_LENGTH'] = 16 * 1024 * 1024
     app.config['IMAGES_UPLOAD_FOLDER'] = IMAGES_UPLOAD_FOLDER
+    app.config['MAX_CONTENT_LENGTH'] = 16 * 1024 * 1024
 
     # הגדרות Flask-Mail
     app.config['MAIL_SERVER'] = os.getenv('MAIL_SERVER')
@@ -57,6 +60,27 @@ def create_app():
     migrate.init_app(app, db)
     cors.init_app(app, resources={r"/*": {"origins": "*", "supports_credentials": True}})
     mail.init_app(app)
+
+    # retry לחיבור למסד הנתונים (חשוב כש-SQL Server בתוך Docker)
+    from sqlalchemy import text
+
+# retry לחיבור למסד הנתונים (חשוב כש-SQL Server בתוך Docker)
+    retries = 5
+    for i in range(retries):
+        try:
+            with app.app_context():
+                with db.engine.connect() as conn:
+                    conn.execute(text("SELECT 1"))
+            print("✅ Database connected successfully")
+            break
+        except Exception as e:
+            print(f"⚠️ Database connection failed: {e}")
+            if i < retries - 1:
+                print(f"Retrying in 5 seconds... ({i+1}/{retries})")
+                time.sleep(5)
+            else:
+                raise e
+
 
     # רישום Blueprints
     from routes.auth import auth_bp
@@ -83,11 +107,8 @@ def create_app():
 
     return app
 
-
 # 🔹 הוספת משתנה app ברמת המודול עבור Gunicorn
 app = create_app()
 
 if __name__ == '__main__':
-    with app.app_context():
-        db.create_all()
     app.run(host="0.0.0.0", port=5000, debug=True)
