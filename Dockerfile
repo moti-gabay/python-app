@@ -11,10 +11,9 @@ RUN apt-get update && apt-get install -y \
     unixodbc-dev \
     g++ \
     make \
-    libgssapi-krb5-2 \
     && rm -rf /var/lib/apt/lists/*
 
-# התקנת Microsoft ODBC Driver 18 ל-SQL Server (ללא apt-key המיושן)
+# התקנת Microsoft ODBC Driver 18 ל-SQL Server
 RUN curl -sSL https://packages.microsoft.com/keys/microsoft.asc | gpg --dearmor > /usr/share/keyrings/microsoft.gpg \
     && echo "deb [arch=amd64 signed-by=/usr/share/keyrings/microsoft.gpg] https://packages.microsoft.com/ubuntu/22.04/prod jammy main" > /etc/apt/sources.list.d/mssql-release.list \
     && apt-get update \
@@ -23,23 +22,21 @@ RUN curl -sSL https://packages.microsoft.com/keys/microsoft.asc | gpg --dearmor 
 
 # הגדרת משתני סביבה ל־ODBC
 ENV LD_LIBRARY_PATH=/opt/microsoft/msodbcsql18/lib64:$LD_LIBRARY_PATH
-ENV ODBCINI=/etc/odbc.ini
-ENV ODBCSYSINI=/etc
 
 # ספריית עבודה
 WORKDIR /app
 
-# התקנת דרישות Python
+# העתקת קובץ requirements ותקנת ספריות Python
 COPY requirements.txt .
-RUN pip install --upgrade pip \
-    && pip install --no-cache-dir -r requirements.txt
+RUN pip install --upgrade pip
+RUN pip install --no-cache-dir -r requirements.txt
 
 # העתקת כל הקוד
 COPY . .
 
-# משתני סביבה
+# משתני סביבה ל-Render
 ENV PORT=10000
 EXPOSE 10000
 
-# ברירת מחדל להרצה עם gunicorn
+# Start command מותאם ל-Render
 CMD ["gunicorn", "--bind", "0.0.0.0:10000", "main:app", "--workers", "2", "--log-level", "info", "--access-logfile", "-", "--error-logfile", "-"]
