@@ -6,7 +6,7 @@ WORKDIR /app
 
 # מעתיקים קבצי דרישות ומתקינים אותם
 COPY requirements.txt .
-RUN pip install --no-cache-dir -r requirements.txt
+RUN pip install -r requirements.txt
 
 # מעתיקים את כל קבצי הפרויקט
 COPY . .
