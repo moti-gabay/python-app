@@ -2,15 +2,22 @@ from flask import Flask
 from extensions import mongo, mail, cors
 import os
 from dotenv import load_dotenv
-import time
-import urllib
 from flask_cors import CORS
+from datetime import datetime
 
 load_dotenv()  # טען משתני סביבה
 
 def create_app():
-    app = Flask(__name__)  # אתחול Flask
-    CORS(app, resources={r"/*": {"origins": "*"}})
+    app = Flask(__name__)
+
+    # רשימת origins מורשים
+    allowed_origins = [
+        "http://localhost:4200",
+        "https://python-app-2-5i73.onrender.com"
+    ]
+
+    # הגדרת CORS עם credentials
+    CORS(app, resources={r"/*": {"origins": allowed_origins}}, supports_credentials=True)
 
     # תיקיות להעלאות
     UPLOAD_FOLDER = os.path.join(os.getcwd(), 'uploads')
@@ -19,19 +26,12 @@ def create_app():
     os.makedirs(IMAGES_UPLOAD_FOLDER, exist_ok=True)
 
     # משתני סביבה
-    
-    secret_key = os.getenv('SECRET_KEY', "supersecretkey")
-
-    # ODBC connection string
-    
+    app.config['SECRET_KEY'] = os.getenv('SECRET_KEY', 'supersecretkey')
     app.config['MONGO_URI'] = os.getenv("MONGO_URI")
-
-    # הגדרות Flask
-    app.config['JSON_AS_ASCII'] = False
-    app.config['SECRET_KEY'] = secret_key
     app.config['UPLOAD_FOLDER'] = UPLOAD_FOLDER
     app.config['IMAGES_UPLOAD_FOLDER'] = IMAGES_UPLOAD_FOLDER
     app.config['MAX_CONTENT_LENGTH'] = 16 * 1024 * 1024
+    app.config['JSON_AS_ASCII'] = False
 
     # הגדרות Flask-Mail
     app.config['MAIL_SERVER'] = os.getenv('MAIL_SERVER')
@@ -43,13 +43,7 @@ def create_app():
 
     # אתחול הרחבות
     mongo.init_app(app)
-    cors.init_app(app, resources={r"/*": {"origins": "*", "supports_credentials": True}})
     mail.init_app(app)
-
-    # retry לחיבור למסד הנתונים (חשוב כש-SQL Server בתוך Docker)
-
-    # retry לחיבור למסד הנתונים (חשוב כש-SQL Server בתוך Docker)
-   
 
     # רישום Blueprints
     from routes.auth import auth_bp
@@ -69,19 +63,22 @@ def create_app():
     app.register_blueprint(image_bp)
     app.register_blueprint(tradition_bp)
     app.register_blueprint(email_bp, url_prefix='/api')
-    
+
+    # מסלול בדיקה
     @app.route("/test-mongo")
     def test_mongo():
-            try:
-                mongo.db.test.insert_one({"message": "Hello Atlas"})
-                return "MongoDB Atlas connected successfully!"
-            except Exception as e:
-                return str(e)
+        try:
+            mongo.db.test.insert_one({"message": "Hello Atlas"})
+            return "MongoDB Atlas connected successfully!"
+        except Exception as e:
+            return str(e)
+
     @app.route("/", methods=["GET"])
     def index():
         return "Flask server is running"
 
     return app
+
 
 # 🔹 הוספת משתנה app ברמת המודול עבור Gunicorn
 app = create_app()
