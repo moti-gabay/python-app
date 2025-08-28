@@ -69,33 +69,44 @@ def register():
 def login():
     try:
         data = request.get_json()
+
+        if not data:
+            return jsonify({"error": "Missing request body"}), 400
+
         email = data.get('email')
         password = data.get('password')
-        if not isinstance(email, str) or not isinstance(password, str):
-            return jsonify({"error": "Expected a string value", "message": "Email and password must be strings"}), 500
-        if not data or not data.get('email') or not data.get('password'):
-            return jsonify({'message': 'Missing email or password'}), 400
 
-        user = mongo.db.users.find_one({"email": data['email']})
-        if not user or not check_password_hash(user['password'], data['password']):
-            return jsonify({'message': 'Invalid credentials'}), 401
+        if not email or not password:
+            return jsonify({'error': 'Missing email or password'}), 400
+
+        if not isinstance(email, str) or not isinstance(password, str):
+            return jsonify({"error": "Invalid input", "message": "Email and password must be strings"}), 400
+
+        user = mongo.db.users.find_one({"email": email})
+        if not user or not check_password_hash(user['password'], password):
+            return jsonify({'error': 'Invalid credentials'}), 401
 
         token = jwt.encode({
             'user_id': str(user['_id']),
             'exp': datetime.datetime.utcnow() + datetime.timedelta(hours=1)
         }, token_key, algorithm='HS256')
 
-        response = make_response(jsonify({'message': 'Login successful'}))
+        # שולח גם כ-cookie וגם ב-json
+        response = make_response(jsonify({
+            'message': 'Login successful',
+            'token': token
+        }))
         response.set_cookie(
-            token_key,
+            "auth_token",  # שם קבוע ולא ה-secret שלך
             token,
             httponly=True,
-            secure=False,  # אפשר לשנות ל-True ב-HTTPS
+            secure=False,  # שנה ל-True אם עובר ל-HTTPS
             samesite='Lax',
-            max_age=3600,  # 1 שעה
+            max_age=3600,  # שעה
             path='/'
         )
         return response
+
     except Exception as e:
         return jsonify({'error': 'Internal Server Error', 'message': str(e)}), 500
 
