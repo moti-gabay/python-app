@@ -69,7 +69,7 @@ def register():
 def login():
     try:
         data = request.get_json()
-
+        print(f"data from login req: {data}")
         if not data:
             return jsonify({"error": "Missing request body"}), 400
 
