@@ -12,12 +12,11 @@ def create_app():
 
     # רשימת origins מורשים
     allowed_origins = [
-        "http://localhost:4200",
-        "https://python-app-2-5i73.onrender.com"
+        "http://localhost:4200"
     ]
 
     # הגדרת CORS עם credentials
-    CORS(app, resources={r"/*": {"origins": allowed_origins}}, supports_credentials=True)
+    CORS(app, supports_credentials=True, resources={r"/*": {"origins": allowed_origins}}, )
 
     # תיקיות להעלאות
     UPLOAD_FOLDER = os.path.join(os.getcwd(), 'uploads')

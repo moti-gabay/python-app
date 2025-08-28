@@ -93,11 +93,10 @@ def login():
 
         # שולח גם כ-cookie וגם ב-json
         response = make_response(jsonify({
-            'message': 'Login successful',
-            'token': token
+            'message': 'Login successful'
         }))
         response.set_cookie(
-            "auth_token",  # שם קבוע ולא ה-secret שלך
+            token_key,  # שם קבוע ולא ה-secret שלך
             token,
             httponly=True,
             secure=False,  # שנה ל-True אם עובר ל-HTTPS
