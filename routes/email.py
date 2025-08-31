@@ -50,7 +50,7 @@ def send_donation_confirmation():
 
 @email_bp.route('/send-contact-email', methods=['POST'])
 @token_required
-def send_contact_email():
+def send_contact_email(current_user):
     data = request.get_json()
     sender_name = data.get('name')
     sender_email = data.get('email')

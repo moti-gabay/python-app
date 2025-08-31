@@ -1,17 +1,15 @@
-# models/news.py
-from extensions import db
-from datetime import datetime, timedelta # ייבוא timedelta לחישוב זמן
+from datetime import datetime, timedelta
+from bson import ObjectId
 
-class NewsItem(db.Model):
-    id = db.Column(db.Integer, primary_key=True)
-    title = db.Column(db.String(255), nullable=False)
-    description = db.Column(db.Text, nullable=True) # תקציר
-    full_content = db.Column(db.Text, nullable=True) # תוכן מלא
-    image_url = db.Column(db.String(500), nullable=True) # URL לתמונה (השם ב-DB)
-    published_at = db.Column(db.DateTime, default=datetime.utcnow, nullable=False)
-    
-    def __repr__(self):
-        return f"<NewsItem {self.title}>"
+class NewsItem:
+    def __init__(self, title, description=None, full_content=None, image_url=None,
+                 published_at=None, _id=None):
+        self._id = str(_id) if _id else None
+        self.title = title
+        self.description = description
+        self.full_content = full_content
+        self.image_url = image_url
+        self.published_at = published_at or datetime.utcnow()
 
     def _calculate_time_ago(self):
         """
@@ -45,11 +43,25 @@ class NewsItem(db.Model):
         מחזיר ייצוג מילוני של אובייקט החדשות, כולל שדות מחושבים.
         """
         return {
-            "id": self.id,
+            "_id": self._id,
             "title": self.title,
             "description": self.description,
-            "full_content": self.full_content, # עבור דף הכתבה המלאה
-            "image_url": self.image_url, # <--- שם שדה ב-JSON כפי שביקש המשתמש
-            "published_at": self.published_at.isoformat() + 'Z', # עדיין מחזירים את זה ליתר ביטחון
-            "timeAgo": self._calculate_time_ago() # <--- שדה מחושב כפי שביקש המשתמש
+            "full_content": self.full_content,
+            "image_url": self.image_url,
+            "published_at": self.published_at.isoformat() + 'Z',
+            "timeAgo": self._calculate_time_ago()
         }
+
+    @staticmethod
+    def from_mongo(doc):
+        """
+        יוצר אובייקט NewsItem ממסמך MongoDB
+        """
+        return NewsItem(
+            title=doc.get('title'),
+            description=doc.get('description'),
+            full_content=doc.get('full_content'),
+            image_url=doc.get('image_url'),
+            published_at=doc.get('published_at'),
+            _id=doc.get('_id')
+        )

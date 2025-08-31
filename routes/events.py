@@ -1,12 +1,10 @@
-from flask import Blueprint, request, jsonify,Response
-from extensions import db
+from flask import Blueprint, request, jsonify
+from extensions import mongo
 from models.event import Event
-from models.user import User
-from utils.decorators import token_required , admin_required,token_required
-from utils.util import json_response
-
+from utils.decorators import token_required, admin_required
 from datetime import datetime
 import json
+from bson import ObjectId
 
 events_bp = Blueprint('events', __name__)
 
@@ -24,187 +22,172 @@ def create_event(current_user):
             time=time_obj,
             location=data['location'],
             needed_volunteers=data['needed_volunteers'],
-            description=data['description'],
-            registered_users=json.dumps([]),  # כך תאפס מראש את המערך
+            description=data.get('description'),
+            registered_users=[],
             is_approved=False,
-            created_by=current_user.id
+            created_by=str(current_user['_id'])
         )
 
-        db.session.add(new_event)
-        db.session.commit()
-        return jsonify(new_event.to_dict()), 201
+        event_dict = new_event.to_dict()
+
+        # הסרת _id אם הוא None כדי למנוע Duplicate Key Error
+        if event_dict.get('_id') is None:
+            event_dict.pop('_id')
+
+        # הכנסה ל-MongoDB
+        result = mongo.db.events.insert_one(event_dict)
+
+        # הוספת ה-_id שהתקבל מהמונגו חזרה למילון
+        event_dict['_id'] = str(result.inserted_id)
+
+        # החזרת המילון כ-JSON
+        return jsonify(event_dict), 201
 
     except Exception as e:
-        db.session.rollback()
         return jsonify({'error': 'Internal Server Error', 'message': str(e)}), 500
-
 
 @events_bp.route('/events', methods=['GET'])
 @token_required
 @admin_required
 def get_events(current_user):
     try:
-        events = Event.query.all()
-        event_list = [event.to_dict() for event in events]
-        return json_response(event_list)
+        docs = mongo.db.events.find()
+        events = [Event.from_mongo(doc).to_dict() for doc in docs]
+        return jsonify(events), 200
     except Exception as e:
         return jsonify({'error': 'Internal Server Error', 'message': str(e)}), 500
 
-@events_bp.route('/events/<int:event_id>', methods=['GET'])
-@admin_required
-def get_event(current_user ,event_id):
-    event = Event.query.get(event_id)
-    if event:
-        return jsonify(event.to_dict())
-    else:
-        return jsonify({"message": "Event not found"}), 404
 
-@events_bp.route('/events/<int:event_id>', methods=['PUT'])
+@events_bp.route('/events/<string:event_id>', methods=['GET'])
+@admin_required
+def get_event(current_user, event_id):
+    try:
+        doc = mongo.db.events.find_one({"_id": ObjectId(event_id)})
+        if not doc:
+            return jsonify({"message": "Event not found"}), 404
+        event = Event.from_mongo(doc)
+        return jsonify(event.to_dict())
+    except Exception as e:
+        return jsonify({'error': str(e)}), 500
+
+
+@events_bp.route('/events/<string:event_id>', methods=['PUT'])
 @admin_required
 def update_event(current_user, event_id):
     try:
-        event = Event.query.get(event_id)
-        if not event:
+        data = request.get_json()
+        update_data = {}
+        for key in ['title','date','time','location','needed_volunteers','description']:
+            if key in data:
+                update_data[key] = data[key]
+
+        if 'date' in update_data:
+            update_data['date'] = datetime.strptime(update_data['date'], '%Y-%m-%d').date()
+        if 'time' in update_data:
+            update_data['time'] = datetime.strptime(update_data['time'], '%H:%M:%S').time()
+
+        result = mongo.db.events.update_one({"_id": ObjectId(event_id)}, {"$set": update_data})
+        if result.matched_count == 0:
             return jsonify({"message": "Event not found"}), 404
 
-        data = request.get_json()
-        event.date = data.get('date', event.date)
-        event.time = data.get('time', event.time)
-        event.location = data.get('location', event.location)
-        event.needed_volunteers = data.get('needed_volunteers', event.needed_volunteers)
-        event.description = data.get('description', event.description)
-
-        db.session.commit()
+        doc = mongo.db.events.find_one({"_id": ObjectId(event_id)})
+        event = Event.from_mongo(doc)
         return jsonify({"message": "Event updated successfully", "event": event.to_dict()})
     except Exception as e:
-        db.session.rollback()
-        return jsonify({'error': 'Internal Server Error', 'message': str(e)}), 500
+        return jsonify({'error': str(e)}), 500
 
-@events_bp.route('/events/<int:event_id>', methods=['DELETE'])
+
+@events_bp.route('/events/<string:event_id>', methods=['DELETE'])
 @token_required
 @admin_required
 def delete_event(current_user, event_id):
     try:
-        event = Event.query.get(event_id)
-        if not event:
+        result = mongo.db.events.delete_one({"_id": ObjectId(event_id)})
+        if result.deleted_count == 0:
             return jsonify({"message": "Event not found"}), 404
-
-        db.session.delete(event)
-        db.session.commit()
         return jsonify({"message": "Event deleted successfully"})
     except Exception as e:
-        db.session.rollback()
-        return jsonify({'error': 'Internal Server Error', 'message': str(e)}), 500
+        return jsonify({'error': str(e)}), 500
 
-import json
 
-@events_bp.route('/events/<int:event_id>/register', methods=['POST'])
+@events_bp.route('/events/<string:event_id>/register', methods=['POST'])
 @token_required
 def register_to_event(current_user, event_id):
     try:
-        event = Event.query.get(event_id)
-        if not event:
+        doc = mongo.db.events.find_one({"_id": ObjectId(event_id)})
+        if not doc:
             return jsonify({'message': 'Event not found'}), 404
 
-        # המרת המחרוזת לרשימה
-        registered_users = json.loads(event.registered_users) if event.registered_users else []
+        event = Event.from_mongo(doc)
+        if current_user["_id"] in event.registered_users:
+            return jsonify({'message': 'You are already registered'}), 400
 
-        # מניעת רישום כפול
-        if current_user.id in registered_users:
-            return jsonify({'message': 'You are already registered for this event'}), 400
+        event.registered_users.append(current_user["_id"])
+        mongo.db.events.update_one({"_id": ObjectId(event_id)}, {"$set": {"registered_users": event.registered_users}})
 
-        # הוספת המשתמש לרשימה
-        registered_users.append(current_user.id)
-
-        # המרת הרשימה חזרה למחרוזת JSON לשמירה במסד הנתונים
-        event.registered_users = json.dumps(registered_users)
-
-        db.session.commit()
-
-        return jsonify({
-            'message': 'You have successfully registered for the event',
-            'registered_users': registered_users
-        }), 200
-
+        return jsonify({'message': 'Registered successfully', 'registered_users': event.registered_users}), 200
     except Exception as e:
-        db.session.rollback()
-        print(f"Error registering user to event: {e}")
-        return jsonify({'message': 'Internal Server Error', 'error': str(e)}), 500
+        return jsonify({'error': str(e)}), 500
 
-@events_bp.route('/events/<int:event_id>/unregister', methods=['POST'])
+
+@events_bp.route('/events/<string:event_id>/unregister', methods=['POST'])
 @token_required
 def unregister_from_event(current_user, event_id):
     try:
-        event = Event.query.get(event_id)
-        if not event:
+        doc = mongo.db.events.find_one({"_id": ObjectId(event_id)})
+        if not doc:
             return jsonify({'message': 'Event not found'}), 404
 
-        registered_users = json.loads(event.registered_users) if event.registered_users else []
+        event = Event.from_mongo(doc)
+        if current_user["_id"] not in event.registered_users:
+            return jsonify({'message': 'You are not registered'}), 400
 
-        # בדוק אם המשתמש בכלל רשום
-        if current_user.id not in registered_users:
-            return jsonify({'message': 'You are not registered for this event'}), 400
+        event.registered_users.remove(current_user["_id"])
+        mongo.db.events.update_one({"_id": ObjectId(event_id)}, {"$set": {"registered_users": event.registered_users}})
 
-        # הסר את המשתמש מהרשימה
-        registered_users.remove(current_user.id)
-
-        # שמור את הרשימה המעודכנת
-        event.registered_users = json.dumps(registered_users)
-
-        db.session.commit()
-
-        return jsonify({
-            'message': 'You have successfully unregistered from the event',
-            'registered_users': registered_users
-        }), 200
-
+        return jsonify({'message': 'Unregistered successfully', 'registered_users': event.registered_users}), 200
     except Exception as e:
-        db.session.rollback()
-        print(f"Error unregistering user from event: {e}")
-        return jsonify({'message': 'Internal Server Error', 'error': str(e)}), 500
+        return jsonify({'error': str(e)}), 500
 
 
-
-@events_bp.route('/events/<int:event_id>/approve', methods=['PUT'])
+@events_bp.route('/events/<string:event_id>/approve', methods=['PUT'])
 @token_required
 @admin_required
 def approve_event(current_user, event_id):
     try:
-        event = Event.query.get(event_id)
-        if not event:
+        result = mongo.db.events.update_one({"_id": ObjectId(event_id)}, {"$set": {"is_approved": True}})
+        if result.matched_count == 0:
             return jsonify({"message": "Event not found"}), 404
 
-        event.is_approved = True
-        db.session.commit()
+        doc = mongo.db.events.find_one({"_id": ObjectId(event_id)})
+        event = Event.from_mongo(doc)
         return jsonify({"message": "Event approved", "event": event.to_dict()})
     except Exception as e:
-        db.session.rollback()
-        return jsonify({'error': 'Internal Server Error', 'message': str(e)}), 500
+        return jsonify({'error': str(e)}), 500
 
 
-@events_bp.route('/events/<int:event_id>/unapprove', methods=['PUT'])
+@events_bp.route('/events/<string:event_id>/unapprove', methods=['PUT'])
 @token_required
 @admin_required
 def unapprove_event(current_user, event_id):
-    # רק מנהל יכול לבטל אישור
-    if current_user.role != 'admin':
-        return jsonify({"message": "Unauthorized – admin only"}), 403
+    try:
+        result = mongo.db.events.update_one({"_id": ObjectId(event_id)}, {"$set": {"is_approved": False}})
+        if result.matched_count == 0:
+            return jsonify({"message": "Event not found"}), 404
 
-    event = Event.query.get(event_id)
-    if not event:
-        return jsonify({"message": "Event not found"}), 404
+        doc = mongo.db.events.find_one({"_id": ObjectId(event_id)})
+        event = Event.from_mongo(doc)
+        return jsonify({"message": "Event unapproved", "event": event.to_dict()})
+    except Exception as e:
+        return jsonify({'error': str(e)}), 500
 
-    event.is_approved = False
-    db.session.commit()
-
-    return jsonify({"message": "Event unapproved", "event": event.to_dict()})
 
 @events_bp.route('/events/approved', methods=['GET'])
 @token_required
 def get_approved_events(current_user):
     try:
-        approved_events = Event.query.filter_by(is_approved=True).all()
-        return jsonify([event.to_dict() for event in approved_events]), 200
+        docs = mongo.db.events.find({"is_approved": True})
+        events = [Event.from_mongo(doc).to_dict() for doc in docs]
+        return jsonify(events)
     except Exception as e:
-        print(f"Error fetching approved events: {e}")
-        return jsonify({'message': 'Internal Server Error', 'error': str(e)}), 500
+        return jsonify({'error': str(e)}), 500

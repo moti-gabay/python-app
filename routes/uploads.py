@@ -1,153 +1,136 @@
+# routes/uploads_bp.py
 import os
-from flask import Blueprint, request, jsonify, current_app as app
+from flask import Blueprint, request, jsonify, current_app as app, send_from_directory
 from werkzeug.utils import secure_filename
-from models.uploaded_file import UploadedFile
-from extensions import db
-from utils.decorators import token_required ,admin_required ,member_required # במידה ויש לך מערכת התחברות
-from flask import send_from_directory
+from extensions import mongo
+from utils.decorators import token_required, admin_required, member_required
+from utils.util import mongo_doc_to_dict
+from datetime import datetime
+from bson.objectid import ObjectId
 
-ALLOWED_EXTENSIONS = {'pdf', 'doc', 'docx', 'xls', 'xlsx', 'txt', 'png', 'jpg', 'jpeg', 'gif','webp'}  # כל קבצים
+ALLOWED_EXTENSIONS = {'pdf', 'doc', 'docx', 'xls', 'xlsx', 'txt', 'png', 'jpg', 'jpeg', 'gif','webp'}
 
 uploads_bp = Blueprint('uploads', __name__)
 
 def allowed_file(filename):
     return '.' in filename and filename.rsplit('.', 1)[1].lower() in ALLOWED_EXTENSIONS
 
+# ---------------- UPLOAD FILE ----------------
 @uploads_bp.route('/upload', methods=['POST'])
 @token_required
-@member_required # <--- ודא שזה member_required ולא admin_required כאן!
-def upload_file(current_user): # הפונקציה חייבת לקבל current_user כפרמטר
-    print(f"משתמש {current_user.email} (תפקיד: {current_user.role}) מנסה להעלות קובץ.")
-    
+@member_required
+def upload_file(current_user):
     if 'file' not in request.files:
-        print("No 'file' part in the request")
         return jsonify({"message": "No file part in the request"}), 400
 
     file = request.files['file']
-
     if file.filename == '':
-        print("No selected file")
         return jsonify({"message": "No selected file"}), 400
 
     category = request.form.get('category')
     year_str = request.form.get('year')
     year = int(year_str) if year_str else None
-    
-    if file:
+
+    if file and allowed_file(file.filename):
         filename = secure_filename(file.filename)
         upload_folder = app.config.get('UPLOAD_FOLDER')
         if not upload_folder:
-            print("UPLOAD_FOLDER is not configured in app.config")
             return jsonify({"message": "Server upload folder not configured"}), 500
-        
+
         filepath = os.path.join(upload_folder, filename)
-        
+        print(current_user)
         try:
             file.save(filepath)
-            new_file = UploadedFile(
-                filename=filename,
-                category=category,
-                year=year,
-                uploaded_by=current_user.id # שמירת ID של המשתמש המעלה
-            )
-            db.session.add(new_file)
-            db.session.commit()
-            print(f"File {filename} uploaded by user {current_user.email} and saved to DB.")
-            return jsonify({"message": "File uploaded successfully", "id": new_file.id}), 201
+            new_doc = {
+                "filename": filename,
+                "category": category,
+                "year": year,
+                "uploaded_by": str(current_user["_id"]),
+                "created_at": datetime.utcnow()
+            }
+            result = mongo.db.uploaded_files.insert_one(new_doc)
+            new_doc['_id'] = result.inserted_id
+            return jsonify({"message": "File uploaded successfully", "id": str(new_doc['_id'])}), 201
         except Exception as e:
-            db.session.rollback()
-            print(f"Error saving file: {e}")
             return jsonify({"message": f"Failed to save file: {str(e)}"}), 500
-    
-    print("File upload failed (unknown reason)")
-    return jsonify({"message": "File upload failed"}), 500
 
+    return jsonify({"message": "File type not allowed"}), 400
 
-
+# ---------------- GET ALL FILES ----------------
 @uploads_bp.route('/files', methods=['GET'])
 @token_required
-@member_required # רק חברים ומנהלים יכולים לצפות
-def get_all_files(current_user): # הפונקציה חייבת לקבל current_user כפרמטר
-    print(f"משתמש {current_user.email} (תפקיד: {current_user.role}) מבקש קבצים.")
-    files = UploadedFile.query.all()
-    # אופציונלי: אם תרצה להציג רק קבצים שהועלו על ידי המשתמש עצמו (בנוסף לתפקיד):
-    # if current_user.role == 'user':
-    #     files = UploadedFile.query.filter_by(uploaded_by=current_user.id).all()
-    return jsonify([file.to_dict() for file in files])
+@member_required
+def get_all_files(current_user):
+    docs = list(mongo.db.uploaded_files.find())
+    return jsonify([mongo_doc_to_dict(doc) for doc in docs]), 200
 
-
+@uploads_bp.route('/files/debug', methods=['GET'])
+def debug_files():
+    docs = list(mongo.db.uploaded_files.find())
+    return jsonify({
+        "count": len(docs),
+        "docs": [str(doc) for doc in docs]
+    }), 200
+# ---------------- VIEW FILE ----------------
 @uploads_bp.route('/files/<filename>', methods=['GET'])
 @token_required
-@admin_required  # אם נדרש
+@admin_required
 def view_file(current_user, filename):
     return send_from_directory(app.config['UPLOAD_FOLDER'], filename)
 
-
-@uploads_bp.route('/files/<int:file_id>', methods=['DELETE'])
+# ---------------- DELETE FILE ----------------
+@uploads_bp.route('/files/<string:file_id>', methods=['DELETE'])
 @token_required
 @admin_required
 def delete_file(current_user, file_id):
-    file = UploadedFile.query.get(file_id)
-    if not file:
-        return jsonify({'message': 'File not found'}), 404
-
-    file_path = os.path.join(app.config['UPLOAD_FOLDER'], file.filename)
-
     try:
+        doc = mongo.db.uploaded_files.find_one({"_id": ObjectId(file_id)})
+        if not doc:
+            return jsonify({'message': 'File not found'}), 404
+
+        file_path = os.path.join(app.config['UPLOAD_FOLDER'], doc['filename'])
         if os.path.exists(file_path):
             os.remove(file_path)
 
-        db.session.delete(file)
-        db.session.commit()
-
+        mongo.db.uploaded_files.delete_one({"_id": ObjectId(file_id)})
         return jsonify({'message': 'File deleted successfully'}), 200
-
     except Exception as e:
-        db.session.rollback()
         return jsonify({'error': 'Database error', 'message': str(e)}), 500
 
+# ---------------- GET FILES BY YEAR ----------------
 @uploads_bp.route('/files/by-year/<int:year>', methods=['GET'])
 @token_required
-@admin_required # אם נדרש
-def get_files_by_year(current_user,year):
-    # מסנן את הקבצים לפי שדה 'year' במודל
-    files = UploadedFile.query.filter_by(year=year).all()
-    if not files:
-        # אפשר להחזיר רשימה ריקה או הודעה מתאימה
+@admin_required
+def get_files_by_year(current_user, year):
+    docs = list(mongo.db.uploaded_files.find({"year": year}))
+    if not docs:
         return jsonify({"message": f"No files found for year {year}"}), 404
-    return jsonify([file.to_dict() for file in files])
+    return jsonify([mongo_doc_to_dict(doc) for doc in docs]), 200
 
-# נקודת קצה לקבלת קבצים לפי קטגוריה
+# ---------------- GET FILES BY CATEGORY ----------------
 @uploads_bp.route('/files/by-category/<string:category>', methods=['GET'])
-# @token_required
-@admin_required # אם נדרש
-def get_files_by_category(category):
-    # מסנן את הקבצים לפי שדה 'category' במודל
-    # ניתן להשתמש ב-ilike לחיפוש לא תלוי רישיות (case-insensitive), אם רוצים
-    files = UploadedFile.query.filter(UploadedFile.category.ilike(category)).all()
-    if not files:
-        # אפשר להחזיר רשימה ריקה או הודעה מתאימה
+@token_required
+@admin_required
+def get_files_by_category(current_user, category):
+    docs = list(mongo.db.uploaded_files.find({"category": {"$regex": f"^{category}$", "$options": "i"}}))
+    if not docs:
         return jsonify({"message": f"No files found for category '{category}'"}), 404
-    return jsonify([file.to_dict() for file in files])
+    return jsonify([mongo_doc_to_dict(doc) for doc in docs]), 200
 
-# אופציונלי: נקודת קצה לקבלת קבצים לפי שנה וקטגוריה יחד
+# ---------------- FILTER FILES ----------------
 @uploads_bp.route('/files/filter', methods=['GET'])
-# @token_required
-@member_required # אם נדרש
-def get_files_filtered():
+@token_required
+@member_required
+def get_files_filtered(current_user):
+    query = {}
     year = request.args.get('year', type=int)
     category = request.args.get('category', type=str)
-
-    query = UploadedFile.query
-
     if year:
-        query = query.filter_by(year=year)
+        query['year'] = year
     if category:
-        query = query.filter(UploadedFile.category.ilike(category))
+        query['category'] = {"$regex": f"^{category}$", "$options": "i"}
 
-    files = query.all()
-
-    if not files:
+    docs = list(mongo.db.uploaded_files.find(query))
+    if not docs:
         return jsonify({"message": "No files found matching the criteria"}), 404
-    return jsonify([file.to_dict() for file in files])
-
+    return jsonify([mongo_doc_to_dict(doc) for doc in docs]), 200

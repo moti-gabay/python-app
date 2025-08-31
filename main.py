@@ -1,15 +1,24 @@
-from flask import Flask
-from flask_sqlalchemy import SQLAlchemy
-from extensions import db, migrate, mail, cors
+from flask import Flask, send_from_directory
+from extensions import mongo, mail, cors
 import os
 from dotenv import load_dotenv
-import time
-import urllib
+from flask_cors import CORS
 
 load_dotenv()  # טען משתני סביבה
 
 def create_app():
-    app = Flask(__name__)  # אתחול Flask
+    # אתחול Flask עם תיקיית Angular כסטטית
+    app = Flask(
+        __name__,
+        static_folder='dist/my-angular-app/browser',  # שנה לפי שם תיקיית dist שלך
+        static_url_path=''
+    )
+
+    # רשימת origins מורשים ל-CORS
+    allowed_origins = [
+        "http://localhost:4200"
+    ]
+    CORS(app, supports_credentials=True, resources={r"/*": {"origins": allowed_origins}})
 
     # תיקיות להעלאות
     UPLOAD_FOLDER = os.path.join(os.getcwd(), 'uploads')
@@ -18,34 +27,12 @@ def create_app():
     os.makedirs(IMAGES_UPLOAD_FOLDER, exist_ok=True)
 
     # משתני סביבה
-    server = os.getenv("DB_SERVER", "sqlserver")
-    database = os.getenv("DB_DATABASE", "TestDB")
-    username = os.getenv("DB_USERNAME", "sa")
-    password = os.getenv("DB_PASSWORD", "YourStrongPassword!123")
-    driver = os.getenv("DB_DRIVER", "ODBC Driver 18 for SQL Server")
-    secret_key = os.getenv('SECRET_KEY', "supersecretkey")
-
-    # ODBC connection string
-    params = (
-        f"DRIVER={driver};"
-        f"SERVER={server},1433;"
-        f"DATABASE={database};"
-        f"UID={username};"
-        f"PWD={password};"
-        "Encrypt=yes;"
-        "TrustServerCertificate=no;"
-        "Connection Timeout=30;"
-    )
-    odbc_conn_str = urllib.parse.quote_plus(params)
-
-    # הגדרות Flask
-    app.config['JSON_AS_ASCII'] = False
-    app.config['SQLALCHEMY_DATABASE_URI'] = f"mssql+pyodbc:///?odbc_connect={odbc_conn_str}"
-    app.config['SQLALCHEMY_TRACK_MODIFICATIONS'] = False
-    app.config['SECRET_KEY'] = secret_key
+    app.config['SECRET_KEY'] = os.getenv('SECRET_KEY', 'supersecretkey')
+    app.config['MONGO_URI'] = os.getenv("MONGO_URI")
     app.config['UPLOAD_FOLDER'] = UPLOAD_FOLDER
     app.config['IMAGES_UPLOAD_FOLDER'] = IMAGES_UPLOAD_FOLDER
     app.config['MAX_CONTENT_LENGTH'] = 16 * 1024 * 1024
+    app.config['JSON_AS_ASCII'] = False
 
     # הגדרות Flask-Mail
     app.config['MAIL_SERVER'] = os.getenv('MAIL_SERVER')
@@ -56,31 +43,8 @@ def create_app():
     app.config['MAIL_DEFAULT_SENDER'] = os.getenv('MAIL_DEFAULT_SENDER')
 
     # אתחול הרחבות
-    db.init_app(app)
-    migrate.init_app(app, db)
-    cors.init_app(app, resources={r"/*": {"origins": "*", "supports_credentials": True}})
+    mongo.init_app(app)
     mail.init_app(app)
-
-    # retry לחיבור למסד הנתונים (חשוב כש-SQL Server בתוך Docker)
-    from sqlalchemy import text
-
-# retry לחיבור למסד הנתונים (חשוב כש-SQL Server בתוך Docker)
-    retries = 5
-    for i in range(retries):
-        try:
-            with app.app_context():
-                with db.engine.connect() as conn:
-                    conn.execute(text("SELECT 1"))
-            print("✅ Database connected successfully")
-            break
-        except Exception as e:
-            print(f"⚠️ Database connection failed: {e}")
-            if i < retries - 1:
-                print(f"Retrying in 5 seconds... ({i+1}/{retries})")
-                time.sleep(5)
-            else:
-                raise e
-
 
     # רישום Blueprints
     from routes.auth import auth_bp
@@ -101,14 +65,29 @@ def create_app():
     app.register_blueprint(tradition_bp)
     app.register_blueprint(email_bp, url_prefix='/api')
 
-    @app.route("/", methods=["GET"])
-    def index():
-        return "Flask server is running"
+    # מסלול בדיקה ל-Mongo
+    @app.route("/test-mongo")
+    def test_mongo():
+        try:
+            mongo.db.test.insert_one({"message": "Hello Atlas"})
+            return "MongoDB Atlas connected successfully!"
+        except Exception as e:
+            return str(e)
+
+    # Serve Angular app
+    @app.route('/', defaults={'path': ''})
+    @app.route('/<path:path>')
+    def serve_angular(path):
+        if path != "" and os.path.exists(os.path.join(app.static_folder, path)):
+            return send_from_directory(app.static_folder, path)
+        else:
+            return send_from_directory(app.static_folder, 'index.csr.html')
 
     return app
 
 # 🔹 הוספת משתנה app ברמת המודול עבור Gunicorn
 app = create_app()
 
-if __name__ == '__main__':
-    app.run(host="0.0.0.0", port=5000, debug=True)
+if __name__ == "__main__":
+    port = int(os.environ.get("PORT", 5000))
+    app.run(host="0.0.0.0", port=port, debug=True)
