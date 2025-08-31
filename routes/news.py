@@ -81,3 +81,15 @@ def delete_news_item(current_user, news_id):
         return jsonify({'message': 'News item deleted'}), 200
     except Exception as e:
         return jsonify({'message': 'Internal Server Error', 'error': str(e)}), 500
+
+# ---------------- GET ALL IDs FOR PRERENDERING ----------------
+@news_bp.route('/ids', methods=['GET'])
+def get_all_news_ids():
+    try:
+        # Query the database for all documents and project only the _id field
+        docs = mongo.db.news.find({}, {"_id": 1})
+        # Convert BSON ObjectId to a string for JSON serialization
+        ids = [str(doc['_id']) for doc in docs]
+        return jsonify(ids), 200
+    except Exception as e:
+        return jsonify({'message': 'Internal Server Error', 'error': str(e)}), 500

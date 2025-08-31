@@ -1,22 +1,24 @@
-from flask import Flask
+from flask import Flask, send_from_directory
 from extensions import mongo, mail, cors
 import os
 from dotenv import load_dotenv
 from flask_cors import CORS
-from datetime import datetime
 
 load_dotenv()  # טען משתני סביבה
 
 def create_app():
-    app = Flask(__name__)
+    # אתחול Flask עם תיקיית Angular כסטטית
+    app = Flask(
+        __name__,
+        static_folder='dist/my-angular-app/browser',  # שנה לפי שם תיקיית dist שלך
+        static_url_path=''
+    )
 
-    # רשימת origins מורשים
+    # רשימת origins מורשים ל-CORS
     allowed_origins = [
         "http://localhost:4200"
     ]
-
-    # הגדרת CORS עם credentials
-    CORS(app, supports_credentials=True, resources={r"/*": {"origins": allowed_origins}}, )
+    CORS(app, supports_credentials=True, resources={r"/*": {"origins": allowed_origins}})
 
     # תיקיות להעלאות
     UPLOAD_FOLDER = os.path.join(os.getcwd(), 'uploads')
@@ -63,7 +65,7 @@ def create_app():
     app.register_blueprint(tradition_bp)
     app.register_blueprint(email_bp, url_prefix='/api')
 
-    # מסלול בדיקה
+    # מסלול בדיקה ל-Mongo
     @app.route("/test-mongo")
     def test_mongo():
         try:
@@ -72,12 +74,16 @@ def create_app():
         except Exception as e:
             return str(e)
 
-    @app.route("/", methods=["GET"])
-    def index():
-        return "Flask server is running"
+    # Serve Angular app
+    @app.route('/', defaults={'path': ''})
+    @app.route('/<path:path>')
+    def serve_angular(path):
+        if path != "" and os.path.exists(os.path.join(app.static_folder, path)):
+            return send_from_directory(app.static_folder, path)
+        else:
+            return send_from_directory(app.static_folder, 'index.csr.html')
 
     return app
-
 
 # 🔹 הוספת משתנה app ברמת המודול עבור Gunicorn
 app = create_app()

@@ -1,0 +1,19 @@
+{
+  "routes": {
+    "/": {},
+    "/add-event": {},
+    "/add-news": {},
+    "/add-tradition": {},
+    "/admin-events": {},
+    "/contact": {},
+    "/dashboard": {},
+    "/donation": {},
+    "/events": {},
+    "/files": {},
+    "/homepage": {},
+    "/images": {},
+    "/login": {},
+    "/news": {},
+    "/tradition": {}
+  }
+}

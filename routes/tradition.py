@@ -87,3 +87,14 @@ def delete_tradition_item(current_user, item_id):
         return jsonify({'message': 'Tradition item deleted'}), 200
     except Exception as e:
         return jsonify({'message': 'Internal Server Error', 'error': str(e)}), 500
+
+@tradition_bp.route('/tradition/ids', methods=['GET'])
+def get_all_tradition_ids():
+    try:
+        # Query the database for all documents and project only the _id field
+        docs = mongo.db.tradition.find({}, {"_id": 1})
+        # Convert BSON ObjectId to a string for JSON serialization
+        ids = [str(doc['_id']) for doc in docs]
+        return jsonify(ids), 200
+    except Exception as e:
+        return jsonify({'message': 'Internal Server Error', 'error': str(e)}), 500
