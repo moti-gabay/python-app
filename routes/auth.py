@@ -65,12 +65,8 @@ def register():
     except Exception as e:
         return jsonify({'error': 'Internal Server Error', 'message': str(e)}), 500
 
-@auth_bp.route('/login', methods=['POST', 'OPTIONS'])
+@auth_bp.route('/login', methods=['POST'])
 def login():
-    if request.method == 'OPTIONS':
-        # מחזיר תשובה ריקה רק כדי שהדפדפן יאשר את הקריאה
-        return '', 200
-
     try:
         data = request.get_json()
         print(f"data from login req: {data}")
@@ -90,22 +86,28 @@ def login():
         if not user or not check_password_hash(user['password'], password):
             return jsonify({'error': 'Invalid credentials'}), 401
 
+        # אם אין role - נגדיר user כברירת מחדל
+        role = user.get("role", "user")
+
+        # מוסיפים גם role ל־JWT
         token = jwt.encode({
             'user_id': str(user['_id']),
+            'role': role,
             'exp': datetime.datetime.utcnow() + datetime.timedelta(hours=1)
         }, token_key, algorithm='HS256')
 
-        # שולח גם כ-cookie וגם ב-json
+        # מחזירים גם ב־cookie וגם ב־json
         response = make_response(jsonify({
-            'message': 'Login successful'
+            'message': 'Login successful',
+            'role': role
         }))
         response.set_cookie(
-            token_key,  # שם קבוע ולא ה-secret שלך
+            token_key,  # שם קבוע לעוגייה
             token,
             httponly=True,
-            secure=True,  # שנה ל-True אם אתה עובד ב-HTTPS
+            secure=False,  # שנה ל-True אם יש HTTPS
             samesite='Lax',
-            max_age=3600,  # שעה
+            max_age=3600,
             path='/'
         )
         return response
