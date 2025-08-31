@@ -65,8 +65,12 @@ def register():
     except Exception as e:
         return jsonify({'error': 'Internal Server Error', 'message': str(e)}), 500
 
-@auth_bp.route('/login', methods=['POST'])
+@auth_bp.route('/login', methods=['POST', 'OPTIONS'])
 def login():
+    if request.method == 'OPTIONS':
+        # מחזיר תשובה ריקה רק כדי שהדפדפן יאשר את הקריאה
+        return '', 200
+
     try:
         data = request.get_json()
         print(f"data from login req: {data}")
@@ -99,7 +103,7 @@ def login():
             token_key,  # שם קבוע ולא ה-secret שלך
             token,
             httponly=True,
-            secure=False,  # שנה ל-True אם עובר ל-HTTPS
+            secure=True,  # שנה ל-True אם אתה עובד ב-HTTPS
             samesite='Lax',
             max_age=3600,  # שעה
             path='/'
